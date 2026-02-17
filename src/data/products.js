@@ -38,7 +38,7 @@ const products = [
     id: 6,
     name: 'Desk Lamp',
     price: 59.99,
-    image: 'https://images.unsplash.com/photo-1507473885765-e6ed057ab6fe?w=400&h=400&fit=crop',
+    image: 'https://images.unsplash.com/photo-1534073737927-85f1ebff1f5d?w=400&h=400&fit=crop',
     description: 'Modern LED desk lamp with adjustable brightness and color temperature.',
   },
 ];

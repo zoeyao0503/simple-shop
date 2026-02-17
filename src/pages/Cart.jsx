@@ -140,7 +140,7 @@ export default function Cart() {
           <Modal onClick={(e) => e.stopPropagation()}>
             <ModalTitle>Payment Coming Soon</ModalTitle>
             <ModalText>
-              This is a demo store. Payment processing will be available in a
+              This is a SnooCommerce demo. Payment processing will be available in a
               future update!
             </ModalText>
             <CloseButton onClick={() => setShowModal(false)}>Got it</CloseButton>

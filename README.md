@@ -1,14 +1,15 @@
-# SimpleShop
+# SnooCommerce
 
-A simple shopping website built with React + Vite + Styled Components.
+A Reddit Snoo-themed shopping website built with React + Vite + Styled Components.
 
 ## Features
 
-- Browse products in a responsive grid layout
-- Add items to cart with quantity controls
+- Browse products in a responsive grid layout with Snoo branding
+- Add items to cart with upvote-style buttons
 - Cart persists in localStorage across page refreshes
 - Fake "Pay Now" button with a coming-soon modal
 - Lead registration form (Name + Email)
+- Reddit orangered color palette with Snoo iconography
 
 ## Getting Started
 

@@ -93,7 +93,7 @@ export default function ProductCard({ product }) {
         <Description>{product.description}</Description>
         <Bottom>
           <Price>${product.price.toFixed(2)}</Price>
-          <AddButton onClick={() => addToCart(product)}>Add to Cart</AddButton>
+          <AddButton onClick={() => addToCart(product)}>&#9650; Add to Cart</AddButton>
         </Bottom>
       </Body>
     </Card>

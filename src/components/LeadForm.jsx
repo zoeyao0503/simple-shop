@@ -84,10 +84,10 @@ export default function LeadForm() {
 
   return (
     <Section>
-      <Title>Stay in the Loop</Title>
-      <Subtitle>Sign up and be the first to know about new products and deals.</Subtitle>
+      <Title>Join the SnooCommerce Community</Title>
+      <Subtitle>Subscribe and be the first to know about upvote-worthy deals and new drops.</Subtitle>
       {submitted ? (
-        <SuccessMsg>Thanks for signing up! We'll be in touch.</SuccessMsg>
+        <SuccessMsg>You're in! Welcome to the SnooCommerce fam.</SuccessMsg>
       ) : (
         <Form onSubmit={handleSubmit}>
           <Input
