@@ -1,0 +1,31 @@
+services:
+  # --- Django API backend ---
+  - type: web
+    name: snoocommerce-api
+    runtime: python
+    rootDir: server
+    buildCommand: ./build.sh
+    startCommand: gunicorn server.wsgi:application
+    envVars:
+      - key: META_ACCESS_TOKEN
+        sync: false
+      - key: META_PIXEL_ID
+        sync: false
+      - key: DJANGO_SECRET_KEY
+        sync: false
+      - key: DEBUG
+        value: "false"
+
+  # --- Vite / React static frontend ---
+  - type: web
+    name: snoocommerce
+    env: static
+    buildCommand: npm run build
+    staticPublishPath: dist
+    routes:
+      - type: rewrite
+        source: /api/*
+        destination: https://snoocommerce-api.onrender.com/api/*
+      - type: rewrite
+        source: /*
+        destination: /index.html

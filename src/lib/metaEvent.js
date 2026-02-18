@@ -1,7 +1,3 @@
-// In dev: empty string (Vite proxy handles /api -> localhost:8000)
-// In prod: full Render backend URL (e.g. https://snoocommerce-api.onrender.com)
-const API_BASE = import.meta.env.VITE_API_URL || '';
-
 function generateEventId() {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
     const r = (Math.random() * 16) | 0;
@@ -35,7 +31,7 @@ export function sendMetaEvent({ eventName, eventSourceUrl, userData = {}, custom
     payload.custom_data = customData;
   }
 
-  fetch(`${API_BASE}/api/event`, {
+  fetch('/api/event', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
