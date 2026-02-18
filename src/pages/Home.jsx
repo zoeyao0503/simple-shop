@@ -1,7 +1,9 @@
+import { useEffect } from 'react';
 import styled from 'styled-components';
 import ProductCard from '../components/ProductCard';
 import LeadForm from '../components/LeadForm';
 import products from '../data/products';
+import { sendMetaEvent } from '../lib/metaEvent';
 
 const Hero = styled.section`
   text-align: center;
@@ -63,6 +65,16 @@ const LeadSection = styled.section`
 `;
 
 export default function Home() {
+  useEffect(() => {
+    sendMetaEvent({
+      eventName: 'ViewContent',
+      customData: {
+        content_type: 'product',
+        content_ids: products.map((p) => String(p.id)),
+      },
+    });
+  }, []);
+
   return (
     <>
       <Hero>

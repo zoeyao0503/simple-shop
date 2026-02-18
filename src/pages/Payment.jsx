@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
 import { useCart } from '../context/CartContext';
 import { getRandomUser } from '../data/fakeUsers';
+import { sendMetaEvent } from '../lib/metaEvent';
 
 const Wrapper = styled.div`
   max-width: 860px;
@@ -159,6 +160,15 @@ export default function Payment() {
 
   const handleSubmit = (e) => {
     e.preventDefault();
+    sendMetaEvent({
+      eventName: 'Purchase',
+      customData: {
+        content_type: 'product',
+        content_ids: cartItems.map((item) => String(item.id)),
+        currency: 'USD',
+        value: cartTotal,
+      },
+    });
     navigate('/payment/success', { state: { name, email } });
   };
 

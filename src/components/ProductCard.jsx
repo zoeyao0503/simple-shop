@@ -1,5 +1,6 @@
 import styled from 'styled-components';
 import { useCart } from '../context/CartContext';
+import { sendMetaEvent } from '../lib/metaEvent';
 
 const Card = styled.div`
   background: ${({ theme }) => theme.colors.surface};
@@ -83,6 +84,19 @@ const AddButton = styled.button`
 export default function ProductCard({ product }) {
   const { addToCart } = useCart();
 
+  const handleAddToCart = () => {
+    addToCart(product);
+    sendMetaEvent({
+      eventName: 'AddToCart',
+      customData: {
+        content_type: 'product',
+        content_ids: [String(product.id)],
+        currency: 'USD',
+        value: product.price,
+      },
+    });
+  };
+
   return (
     <Card>
       <ImageWrapper>
@@ -93,7 +107,7 @@ export default function ProductCard({ product }) {
         <Description>{product.description}</Description>
         <Bottom>
           <Price>${product.price.toFixed(2)}</Price>
-          <AddButton onClick={() => addToCart(product)}>&#9650; Add to Cart</AddButton>
+          <AddButton onClick={handleAddToCart}>&#9650; Add to Cart</AddButton>
         </Bottom>
       </Body>
     </Card>
