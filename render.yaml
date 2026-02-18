@@ -16,6 +16,20 @@ services:
       - key: DEBUG
         value: "false"
 
+  # --- Hourly synthetic traffic generator ---
+  - type: cron
+    name: snoocommerce-traffic
+    runtime: python
+    rootDir: server
+    buildCommand: ./build.sh
+    schedule: "0 * * * *"
+    startCommand: python manage.py generate_traffic --count 100
+    envVars:
+      - key: META_ACCESS_TOKEN
+        sync: false
+      - key: META_PIXEL_ID
+        sync: false
+
   # --- Vite / React static frontend ---
   - type: web
     name: snoocommerce
