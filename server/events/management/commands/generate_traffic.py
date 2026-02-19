@@ -21,11 +21,18 @@ from events.views import _append_log
 
 META_GRAPH_API_URL = 'https://graph.facebook.com/v24.0/{pixel_id}/events'
 TIKTOK_EVENTS_API_URL = 'https://business-api.tiktok.com/open_api/v1.3/pixel/track/'
+REDDIT_CAPI_URL = 'https://ads-api.reddit.com/api/v2.0/conversions/events/{account_id}'
 
 EVENT_MAP = {
     'ViewContent': {'meta': 'ViewContent', 'tiktok': 'ViewContent', 'reddit': 'ViewContent'},
     'AddToCart':   {'meta': 'AddToCart',   'tiktok': 'AddToCart',   'reddit': 'AddToCart'},
     'Purchase':    {'meta': 'Purchase',    'tiktok': 'CompletePayment', 'reddit': 'Purchase'},
+}
+
+REDDIT_TRACKING_TYPE = {
+    'ViewContent': 'ViewContent',
+    'AddToCart':   'AddToCart',
+    'Purchase':    'Purchase',
 }
 
 
@@ -107,8 +114,81 @@ def _send_to_tiktok(event_data, products):
         return 500, {'error': str(e)}
 
 
+def _send_to_reddit(event_data, products):
+    if not settings.REDDIT_ACCESS_TOKEN:
+        return None, None
+
+    event_name = event_data['event_name']
+    tracking_type = REDDIT_TRACKING_TYPE.get(event_name)
+    if not tracking_type:
+        return None, None
+
+    user_data = event_data.get('user_data', {})
+    custom_data = event_data.get('custom_data', {})
+
+    event_at = datetime.fromtimestamp(
+        event_data.get('event_time', int(time.time())), tz=timezone.utc
+    ).strftime('%Y-%m-%dT%H:%M:%SZ')
+
+    reddit_event = {
+        'event_at': event_at,
+        'event_type': {
+            'tracking_type': tracking_type,
+        },
+    }
+
+    event_metadata = {}
+    event_id = event_data.get('event_id')
+    if event_id:
+        event_metadata['conversion_id'] = event_id
+    if custom_data.get('value') is not None:
+        event_metadata['value'] = int(round(custom_data['value'] * 100))
+    if custom_data.get('currency'):
+        event_metadata['currency'] = custom_data['currency']
+    rdt_products = [
+        {
+            'id': str(p['id']),
+            'name': p['name'],
+            'category': 'product',
+        }
+        for p in products
+    ]
+    if rdt_products:
+        event_metadata['products'] = rdt_products
+        event_metadata['item_count'] = len(rdt_products)
+    if event_metadata:
+        reddit_event['event_metadata'] = event_metadata
+
+    user = {}
+    email_list = user_data.get('em', [])
+    if email_list:
+        user['email'] = email_list[0] if isinstance(email_list, list) else email_list
+    ip = user_data.get('client_ip_address')
+    if ip:
+        user['ip_address'] = hashlib.sha256(ip.encode()).hexdigest()
+    ua = user_data.get('client_user_agent')
+    if ua:
+        user['user_agent'] = ua
+    if user:
+        reddit_event['user'] = user
+
+    url = REDDIT_CAPI_URL.format(account_id=settings.REDDIT_PIXEL_ID)
+    payload = {'events': [reddit_event]}
+    headers = {
+        'Content-Type': 'application/json',
+        'Authorization': f'Bearer {settings.REDDIT_ACCESS_TOKEN}',
+    }
+
+    try:
+        resp = http_requests.post(url, json=payload, headers=headers, timeout=10)
+        result = resp.json()
+        return resp.status_code, result
+    except Exception as e:
+        return 500, {'error': str(e)}
+
+
 class Command(BaseCommand):
-    help = 'Generate synthetic traffic for Meta CAPI and TikTok Events API'
+    help = 'Generate synthetic traffic for Meta CAPI, TikTok Events API, and Reddit CAPI'
 
     def add_arguments(self, parser):
         parser.add_argument(
@@ -188,6 +268,9 @@ class Command(BaseCommand):
             # --- TikTok Events API ---
             tt_status, tt_result = _send_to_tiktok(event_data, products)
 
+            # --- Reddit Conversions API ---
+            rdt_status, rdt_result = _send_to_reddit(event_data, products)
+
             log_entry = {
                 'timestamp': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
                 'event_name': event_name,
@@ -200,6 +283,9 @@ class Command(BaseCommand):
             if tt_status is not None:
                 log_entry['tiktok_status_code'] = tt_status
                 log_entry['tiktok_response'] = tt_result
+            if rdt_status is not None:
+                log_entry['reddit_status_code'] = rdt_status
+                log_entry['reddit_response'] = rdt_result
             _append_log(log_entry)
 
             if not meta_ok:
@@ -209,7 +295,10 @@ class Command(BaseCommand):
                 tt_info = ''
                 if tt_status is not None:
                     tt_info = f' | TT:{tt_status}'
-                self.stdout.write(f'  [{i+1}/{count}] {event_name} OK id={event_id[:8]}...{tt_info}')
+                rdt_info = ''
+                if rdt_status is not None:
+                    rdt_info = f' | RDT:{rdt_status}'
+                self.stdout.write(f'  [{i+1}/{count}] {event_name} OK id={event_id[:8]}...{tt_info}{rdt_info}')
 
             if i < count - 1:
                 time.sleep(0.1)

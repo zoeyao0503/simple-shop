@@ -49,12 +49,17 @@ export function sendEvent({ eventName, eventSourceUrl, userData = {}, customData
     window.ttq.track(platformEventName(eventName, 'tiktok'), ttData);
   }
 
-  // --- Reddit Pixel (browser-side) ---
+  // --- Reddit Pixel (browser-side, with conversion_id for dedup) ---
   if (typeof window.rdt === 'function') {
-    window.rdt('track', platformEventName(eventName, 'reddit'));
+    const rdtEvent = platformEventName(eventName, 'reddit');
+    const rdtProps = { conversion_id: eventId };
+    if (customData.value != null) rdtProps.value = customData.value;
+    if (customData.currency) rdtProps.currency = customData.currency;
+    if (customData.content_ids) rdtProps.itemCount = customData.content_ids.length;
+    window.rdt('track', rdtEvent, rdtProps);
   }
 
-  // --- Server-side call (Django handles both Meta CAPI + TikTok Events API) ---
+  // --- Server-side call (Django handles Meta CAPI + TikTok EAPI + Reddit CAPI) ---
   const payload = {
     event_name: eventName,
     event_id: eventId,

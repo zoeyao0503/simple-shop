@@ -15,6 +15,10 @@ services:
         sync: false
       - key: TIKTOK_PIXEL_ID
         sync: false
+      - key: REDDIT_ACCESS_TOKEN
+        sync: false
+      - key: REDDIT_PIXEL_ID
+        sync: false
       - key: DJANGO_SECRET_KEY
         sync: false
       - key: DEBUG
@@ -36,6 +40,10 @@ services:
       - key: TIKTOK_ACCESS_TOKEN
         sync: false
       - key: TIKTOK_PIXEL_ID
+        sync: false
+      - key: REDDIT_ACCESS_TOKEN
+        sync: false
+      - key: REDDIT_PIXEL_ID
         sync: false
 
   # --- Vite / React static frontend ---
