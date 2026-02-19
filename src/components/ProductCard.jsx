@@ -1,6 +1,6 @@
 import styled from 'styled-components';
 import { useCart } from '../context/CartContext';
-import { sendMetaEvent } from '../lib/metaEvent';
+import { sendEvent } from '../lib/trackEvent';
 
 const Card = styled.div`
   background: ${({ theme }) => theme.colors.surface};
@@ -86,11 +86,12 @@ export default function ProductCard({ product }) {
 
   const handleAddToCart = () => {
     addToCart(product);
-    sendMetaEvent({
+    sendEvent({
       eventName: 'AddToCart',
       customData: {
         content_type: 'product',
         content_ids: [String(product.id)],
+        content_names: [product.name],
         currency: 'USD',
         value: product.price,
       },

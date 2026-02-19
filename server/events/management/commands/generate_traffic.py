@@ -3,12 +3,14 @@ import json
 import random
 import time
 import uuid
+from datetime import datetime, timezone
 
 import requests as http_requests
 from django.conf import settings
 from django.core.management.base import BaseCommand
 
 from events.fake_traffic import (
+    PRODUCTS,
     random_event_source_url,
     random_ip,
     random_products,
@@ -17,7 +19,19 @@ from events.fake_traffic import (
 )
 from events.views import _append_log
 
-GRAPH_API_URL = 'https://graph.facebook.com/v24.0/{pixel_id}/events'
+META_GRAPH_API_URL = 'https://graph.facebook.com/v24.0/{pixel_id}/events'
+TIKTOK_EVENTS_API_URL = 'https://business-api.tiktok.com/open_api/v1.3/pixel/track/'
+
+EVENT_MAP = {
+    'ViewContent': {'meta': 'ViewContent', 'tiktok': 'ViewContent', 'reddit': 'ViewContent'},
+    'AddToCart':   {'meta': 'AddToCart',   'tiktok': 'AddToCart',   'reddit': 'AddToCart'},
+    'Purchase':    {'meta': 'Purchase',    'tiktok': 'CompletePayment', 'reddit': 'Purchase'},
+}
+
+
+def platform_event_name(event_name, platform):
+    entry = EVENT_MAP.get(event_name, {})
+    return entry.get(platform, event_name)
 
 EVENT_WEIGHTS = [
     ('ViewContent', 50),
@@ -31,6 +45,8 @@ for _name, _weight in EVENT_WEIGHTS:
     _total += _weight
     EVENT_CUMULATIVE.append(_total)
 
+PRODUCT_NAME_MAP = {str(p['id']): p['name'] for p in PRODUCTS}
+
 
 def pick_event_name():
     r = random.randint(1, EVENT_CUMULATIVE[-1])
@@ -40,8 +56,59 @@ def pick_event_name():
     return EVENT_NAMES[-1]
 
 
+def _send_to_tiktok(event_data, products):
+    if not settings.TIKTOK_ACCESS_TOKEN:
+        return None, None
+
+    event_name = event_data['event_name']
+    tt_event = platform_event_name(event_name, 'tiktok')
+    custom_data = event_data.get('custom_data', {})
+
+    contents = [
+        {
+            'content_id': str(p['id']),
+            'content_type': 'product',
+            'content_name': p['name'],
+        }
+        for p in products
+    ]
+
+    tt_payload = {
+        'pixel_code': settings.TIKTOK_PIXEL_ID,
+        'event': tt_event,
+        'event_id': event_data.get('event_id', ''),
+        'timestamp': datetime.fromtimestamp(
+            event_data.get('event_time', int(time.time())), tz=timezone.utc
+        ).strftime('%Y-%m-%dT%H:%M:%S%z'),
+        'context': {
+            'user_agent': event_data['user_data'].get('client_user_agent', ''),
+            'ip': event_data['user_data'].get('client_ip_address', ''),
+            'page': {
+                'url': event_data.get('event_source_url', ''),
+            },
+        },
+        'properties': {
+            'contents': contents,
+            'currency': custom_data.get('currency', 'USD'),
+            'value': custom_data.get('value', 0),
+        },
+    }
+
+    headers = {
+        'Content-Type': 'application/json',
+        'Access-Token': settings.TIKTOK_ACCESS_TOKEN,
+    }
+
+    try:
+        resp = http_requests.post(TIKTOK_EVENTS_API_URL, json=tt_payload, headers=headers, timeout=10)
+        result = resp.json()
+        return resp.status_code, result
+    except Exception as e:
+        return 500, {'error': str(e)}
+
+
 class Command(BaseCommand):
-    help = 'Generate synthetic Meta CAPI traffic to simulate real user activity'
+    help = 'Generate synthetic traffic for Meta CAPI and TikTok Events API'
 
     def add_arguments(self, parser):
         parser.add_argument(
@@ -50,20 +117,18 @@ class Command(BaseCommand):
         )
         parser.add_argument(
             '--dry-run', action='store_true',
-            help='Build payloads but do not POST to Meta',
+            help='Build payloads but do not POST to APIs',
         )
 
     def handle(self, *args, **options):
         count = options['count']
         dry_run = options['dry_run']
-        access_token = settings.META_ACCESS_TOKEN
-        pixel_id = settings.META_PIXEL_ID
 
-        if not access_token:
+        if not settings.META_ACCESS_TOKEN:
             self.stderr.write(self.style.ERROR('META_ACCESS_TOKEN is not set'))
             return
 
-        url = GRAPH_API_URL.format(pixel_id=pixel_id)
+        meta_url = META_GRAPH_API_URL.format(pixel_id=settings.META_PIXEL_ID)
         counters = {'ViewContent': 0, 'AddToCart': 0, 'Purchase': 0}
         errors = 0
 
@@ -92,6 +157,7 @@ class Command(BaseCommand):
                 'custom_data': {
                     'content_type': 'product',
                     'content_ids': [str(p['id']) for p in products],
+                    'content_names': [p['name'] for p in products],
                     'currency': 'USD',
                     'value': round(sum(p['price'] for p in products), 2),
                 },
@@ -101,37 +167,50 @@ class Command(BaseCommand):
                 self.stdout.write(f'  [{i+1}/{count}] {event_name} (dry-run) id={event_id[:8]}...')
                 continue
 
-            payload = {
+            # --- Meta CAPI ---
+            meta_payload = {
                 'data': json.dumps([event_data]),
-                'access_token': access_token,
+                'access_token': settings.META_ACCESS_TOKEN,
             }
 
+            meta_ok = True
             try:
-                resp = http_requests.post(url, data=payload, timeout=10)
-                result = resp.json()
-
-                log_entry = {
-                    'timestamp': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
-                    'event_name': event_name,
-                    'event_id': event_id,
-                    'payload_sent': event_data,
-                    'meta_status_code': resp.status_code,
-                    'meta_response': result,
-                    'source': 'generate_traffic',
-                }
-                _append_log(log_entry)
-
-                if resp.status_code != 200:
-                    errors += 1
-                    self.stderr.write(f'  [{i+1}/{count}] {event_name} FAILED {resp.status_code}: {result}')
-                else:
-                    self.stdout.write(f'  [{i+1}/{count}] {event_name} OK id={event_id[:8]}...')
-
+                resp = http_requests.post(meta_url, data=meta_payload, timeout=10)
+                meta_result = resp.json()
+                meta_status = resp.status_code
+                if meta_status != 200:
+                    meta_ok = False
             except Exception as e:
-                errors += 1
-                self.stderr.write(f'  [{i+1}/{count}] {event_name} ERROR: {e}')
+                meta_status = 500
+                meta_result = {'error': str(e)}
+                meta_ok = False
 
-            # Small delay to avoid hammering the API
+            # --- TikTok Events API ---
+            tt_status, tt_result = _send_to_tiktok(event_data, products)
+
+            log_entry = {
+                'timestamp': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
+                'event_name': event_name,
+                'event_id': event_id,
+                'payload_sent': event_data,
+                'meta_status_code': meta_status,
+                'meta_response': meta_result,
+                'source': 'generate_traffic',
+            }
+            if tt_status is not None:
+                log_entry['tiktok_status_code'] = tt_status
+                log_entry['tiktok_response'] = tt_result
+            _append_log(log_entry)
+
+            if not meta_ok:
+                errors += 1
+                self.stderr.write(f'  [{i+1}/{count}] {event_name} META FAILED {meta_status}: {meta_result}')
+            else:
+                tt_info = ''
+                if tt_status is not None:
+                    tt_info = f' | TT:{tt_status}'
+                self.stdout.write(f'  [{i+1}/{count}] {event_name} OK id={event_id[:8]}...{tt_info}')
+
             if i < count - 1:
                 time.sleep(0.1)
 

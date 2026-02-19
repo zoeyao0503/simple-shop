@@ -31,3 +31,6 @@ WSGI_APPLICATION = 'server.wsgi.application'
 
 META_ACCESS_TOKEN = os.environ.get('META_ACCESS_TOKEN', '')
 META_PIXEL_ID = os.environ.get('META_PIXEL_ID', '2881174115331441')
+
+TIKTOK_ACCESS_TOKEN = os.environ.get('TIKTOK_ACCESS_TOKEN', '')
+TIKTOK_PIXEL_ID = os.environ.get('TIKTOK_PIXEL_ID', 'D6B1UFJC77U56TVAO8RG')
