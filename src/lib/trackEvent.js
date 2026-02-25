@@ -1,3 +1,7 @@
+import { getClickIds } from './clickIds';
+
+const META_PIXEL_ID = '2881174115331441';
+
 const EVENT_MAP = {
   ViewContent: { meta: 'ViewContent', tiktok: 'ViewContent', reddit: 'ViewContent' },
   AddToCart:   { meta: 'AddToCart',   tiktok: 'AddToCart',   reddit: 'AddToCart' },
@@ -17,6 +21,15 @@ function generateEventId() {
   });
 }
 
+export async function sha256(value) {
+  if (!value) return '';
+  const data = new TextEncoder().encode(value.trim().toLowerCase());
+  const hash = await crypto.subtle.digest('SHA-256', data);
+  return Array.from(new Uint8Array(hash))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('');
+}
+
 function buildTikTokContents(customData) {
   const ids = customData.content_ids || [];
   const names = customData.content_names || [];
@@ -27,12 +40,21 @@ function buildTikTokContents(customData) {
   }));
 }
 
-export function sendEvent({ eventName, eventSourceUrl, userData = {}, customData = {} }) {
+export async function sendEvent({ eventName, eventSourceUrl, userData = {}, customData = {} }) {
   const eventId = generateEventId();
   const url = eventSourceUrl || window.location.href;
+  const clickIds = getClickIds();
 
   // --- Meta Pixel (browser-side dedup) ---
   if (typeof window.fbq === 'function') {
+    if (userData.em || userData.ph || userData.fn || userData.ln) {
+      const metaMatch = {};
+      if (userData.em) metaMatch.em = userData.em;
+      if (userData.ph) metaMatch.ph = userData.ph;
+      if (userData.fn) metaMatch.fn = userData.fn;
+      if (userData.ln) metaMatch.ln = userData.ln;
+      window.fbq('init', META_PIXEL_ID, metaMatch);
+    }
     const pixelData = { ...customData };
     delete pixelData.content_names;
     window.fbq('track', platformEventName(eventName, 'meta'), pixelData, { eventID: eventId });
@@ -40,12 +62,17 @@ export function sendEvent({ eventName, eventSourceUrl, userData = {}, customData
 
   // --- TikTok Pixel (browser-side) ---
   if (typeof window.ttq !== 'undefined') {
+    if (userData.em || userData.ph) {
+      const ttIdentify = {};
+      if (userData.em) ttIdentify.email = userData.em;
+      if (userData.ph) ttIdentify.phone_number = userData.ph;
+      window.ttq.identify(ttIdentify);
+    }
     const ttData = {
       contents: buildTikTokContents(customData),
     };
     if (customData.value != null) ttData.value = customData.value;
     if (customData.currency) ttData.currency = customData.currency;
-
     window.ttq.track(platformEventName(eventName, 'tiktok'), ttData);
   }
 
@@ -69,6 +96,16 @@ export function sendEvent({ eventName, eventSourceUrl, userData = {}, customData
       ...userData,
     },
   };
+
+  if (clickIds.fbclid) {
+    payload.user_data.fbc = `fb.1.${Date.now()}.${clickIds.fbclid}`;
+  }
+  if (clickIds.ttclid) {
+    payload.user_data.ttclid = clickIds.ttclid;
+  }
+  if (clickIds.rdt_cid) {
+    payload.click_id = clickIds.rdt_cid;
+  }
 
   if (Object.keys(customData).length > 0) {
     payload.custom_data = customData;

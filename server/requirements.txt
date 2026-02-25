@@ -3,3 +3,4 @@ django-cors-headers
 requests
 python-dotenv
 gunicorn
+playwright

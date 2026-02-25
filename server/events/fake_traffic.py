@@ -1,4 +1,6 @@
 import random
+import string
+import time
 
 SITE_URL = 'https://snoocommerce.onrender.com'
 
@@ -96,4 +98,25 @@ def random_event_source_url(event_name):
         return random.choice([f'{SITE_URL}/', f'{SITE_URL}/cart'])
     elif event_name == 'Purchase':
         return f'{SITE_URL}/payment'
+    elif event_name == 'Lead':
+        return f'{SITE_URL}/payment'
     return f'{SITE_URL}/'
+
+
+def random_fbclid():
+    """fb.1.{unix_ms}.{62 alphanumeric chars}"""
+    ts = int(time.time() * 1000)
+    chars = string.ascii_letters + string.digits
+    rand_part = ''.join(random.choices(chars, k=62))
+    return f'fb.1.{ts}.{rand_part}'
+
+
+def random_ttclid():
+    """~26 alphanumeric characters"""
+    chars = string.ascii_letters + string.digits
+    return ''.join(random.choices(chars, k=26))
+
+
+def random_rdt_cid():
+    """~19-digit numeric string"""
+    return str(random.randint(10**18, 10**19 - 1))

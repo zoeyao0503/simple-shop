@@ -18,12 +18,14 @@ EVENT_MAP = {
     'ViewContent': {'meta': 'ViewContent', 'tiktok': 'ViewContent', 'reddit': 'ViewContent'},
     'AddToCart':   {'meta': 'AddToCart',   'tiktok': 'AddToCart',   'reddit': 'AddToCart'},
     'Purchase':    {'meta': 'Purchase',    'tiktok': 'CompletePayment', 'reddit': 'Purchase'},
+    'Lead':        {'meta': 'Lead',        'tiktok': 'SubmitForm',     'reddit': 'Lead'},
 }
 
 REDDIT_TRACKING_TYPE = {
     'ViewContent': 'ViewContent',
     'AddToCart':   'AddToCart',
     'Purchase':    'Purchase',
+    'Lead':        'Lead',
 }
 
 
@@ -51,6 +53,10 @@ def _send_to_meta(event_data):
     ud = sanitized.get('user_data', {})
     for key in ('em', 'ph', 'email', 'phone'):
         ud.pop(key, None)
+    fbc = ud.pop('fbc', None)
+    ud.pop('ttclid', None)
+    if fbc:
+        ud['fbc'] = fbc
 
     payload = {
         'data': json.dumps([sanitized]),
@@ -97,6 +103,9 @@ def _send_to_tiktok(event_data):
     ph_list = user_data.get('ph', [])
     if ph_list:
         tt_user['phone_number'] = ph_list[0] if isinstance(ph_list, list) else ph_list
+    ttclid = user_data.get('ttclid')
+    if ttclid:
+        tt_user['ttclid'] = ttclid
 
     tt_context = {
         'user_agent': user_data.get('client_user_agent', ''),
@@ -193,6 +202,10 @@ def _send_to_reddit(event_data):
     if event_metadata:
         reddit_event['event_metadata'] = event_metadata
 
+    click_id = event_data.get('click_id')
+    if click_id:
+        reddit_event['click_id'] = click_id
+
     user = {}
     email_list = user_data.get('em', [])
     if email_list:
@@ -253,6 +266,9 @@ def send_event(request):
 
     if body.get('event_source_url'):
         event_data['event_source_url'] = body['event_source_url']
+
+    if body.get('click_id'):
+        event_data['click_id'] = body['click_id']
 
     if body.get('custom_data'):
         event_data['custom_data'] = body['custom_data']

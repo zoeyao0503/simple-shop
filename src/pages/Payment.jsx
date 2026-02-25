@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
 import { useCart } from '../context/CartContext';
 import { getRandomUser } from '../data/fakeUsers';
-import { sendEvent } from '../lib/trackEvent';
+import { sendEvent, sha256 } from '../lib/trackEvent';
 
 const Wrapper = styled.div`
   max-width: 860px;
@@ -158,10 +158,23 @@ export default function Payment() {
     setAddress(user.address);
   }, []);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    sendEvent({
+    const nameParts = name.trim().split(/\s+/);
+    const [hashedEm, hashedPh, hashedFn, hashedLn] = await Promise.all([
+      sha256(email),
+      sha256(phone.replace(/\D/g, '')),
+      sha256(nameParts[0] || ''),
+      sha256(nameParts.slice(1).join(' ') || ''),
+    ]);
+    await sendEvent({
       eventName: 'Purchase',
+      userData: {
+        em: hashedEm,
+        ph: hashedPh,
+        fn: hashedFn,
+        ln: hashedLn,
+      },
       customData: {
         content_type: 'product',
         content_ids: cartItems.map((item) => String(item.id)),

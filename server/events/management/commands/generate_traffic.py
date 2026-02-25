@@ -13,8 +13,11 @@ from django.core.management.base import BaseCommand
 from events.fake_traffic import (
     PRODUCTS,
     random_event_source_url,
+    random_fbclid,
     random_ip,
     random_products,
+    random_rdt_cid,
+    random_ttclid,
     random_user,
     random_user_agent,
 )
@@ -28,12 +31,14 @@ EVENT_MAP = {
     'ViewContent': {'meta': 'ViewContent', 'tiktok': 'ViewContent', 'reddit': 'ViewContent'},
     'AddToCart':   {'meta': 'AddToCart',   'tiktok': 'AddToCart',   'reddit': 'AddToCart'},
     'Purchase':    {'meta': 'Purchase',    'tiktok': 'CompletePayment', 'reddit': 'Purchase'},
+    'Lead':        {'meta': 'Lead',        'tiktok': 'SubmitForm',     'reddit': 'Lead'},
 }
 
 REDDIT_TRACKING_TYPE = {
     'ViewContent': 'ViewContent',
     'AddToCart':   'AddToCart',
     'Purchase':    'Purchase',
+    'Lead':        'Lead',
 }
 
 
@@ -42,9 +47,10 @@ def platform_event_name(event_name, platform):
     return entry.get(platform, event_name)
 
 EVENT_WEIGHTS = [
-    ('ViewContent', 50),
-    ('AddToCart', 30),
+    ('ViewContent', 40),
+    ('AddToCart', 25),
     ('Purchase', 20),
+    ('Lead', 15),
 ]
 EVENT_NAMES = [name for name, _ in EVENT_WEIGHTS]
 EVENT_CUMULATIVE = []
@@ -89,6 +95,9 @@ def _send_to_tiktok(event_data, products):
     ph_list = user_data.get('ph', [])
     if ph_list:
         tt_user['phone_number'] = ph_list[0] if isinstance(ph_list, list) else ph_list
+    ttclid = user_data.get('ttclid')
+    if ttclid:
+        tt_user['ttclid'] = ttclid
 
     tt_context = {
         'user_agent': user_data.get('client_user_agent', ''),
@@ -150,6 +159,10 @@ def _send_to_reddit(event_data, products):
             'tracking_type': tracking_type,
         },
     }
+
+    click_id = event_data.get('click_id')
+    if click_id:
+        reddit_event['click_id'] = click_id
 
     event_metadata = {}
     event_id = event_data.get('event_id')
@@ -226,7 +239,7 @@ class Command(BaseCommand):
             return
 
         meta_url = META_GRAPH_API_URL.format(pixel_id=settings.META_PIXEL_ID)
-        counters = {'ViewContent': 0, 'AddToCart': 0, 'Purchase': 0}
+        counters = {'ViewContent': 0, 'AddToCart': 0, 'Purchase': 0, 'Lead': 0}
         errors = 0
 
         self.stdout.write(f'Generating {count} synthetic events (dry_run={dry_run})...')
@@ -239,18 +252,21 @@ class Command(BaseCommand):
             products = random_products()
             event_id = str(uuid.uuid4())
 
+            hashed_em = hashlib.sha256(user['email'].lower().strip().encode()).hexdigest()
+            hashed_ph = hashlib.sha256(user['phone'].strip().encode()).hexdigest()
+
+            user_data = {
+                'client_user_agent': random_user_agent(),
+                'client_ip_address': random_ip(),
+            }
+
             event_data = {
                 'event_name': event_name,
                 'event_time': int(time.time()),
                 'event_id': event_id,
                 'action_source': 'website',
                 'event_source_url': random_event_source_url(event_name),
-                'user_data': {
-                    'client_user_agent': random_user_agent(),
-                    'client_ip_address': random_ip(),
-                    'em': [hashlib.sha256(user['email'].lower().strip().encode()).hexdigest()],
-                    'ph': [hashlib.sha256(user['phone'].strip().encode()).hexdigest()],
-                },
+                'user_data': user_data,
                 'custom_data': {
                     'content_type': 'product',
                     'content_ids': [str(p['id']) for p in products],
@@ -260,14 +276,35 @@ class Command(BaseCommand):
                 },
             }
 
+            if event_name == 'Purchase':
+                user_data['em'] = [hashed_em]
+                user_data['ph'] = [hashed_ph]
+                user_data['fbc'] = random_fbclid()
+                user_data['ttclid'] = random_ttclid()
+                event_data['click_id'] = random_rdt_cid()
+
+            elif event_name == 'AddToCart':
+                user_data['em'] = [hashed_em]
+                user_data['ph'] = [hashed_ph]
+
+            elif event_name == 'Lead':
+                pass
+
+            else:
+                user_data['em'] = [hashed_em]
+                user_data['ph'] = [hashed_ph]
+                user_data['fbc'] = random_fbclid()
+                user_data['ttclid'] = random_ttclid()
+                event_data['click_id'] = random_rdt_cid()
+
             if dry_run:
                 self.stdout.write(f'  [{i+1}/{count}] {event_name} (dry-run) id={event_id[:8]}...')
                 continue
 
-            # --- Meta CAPI (strip em/ph — no PII to Meta) ---
+            # --- Meta CAPI (strip em/ph — no PII to Meta, keep fbc) ---
             meta_sanitized = copy.deepcopy(event_data)
             meta_ud = meta_sanitized.get('user_data', {})
-            for pii_key in ('em', 'ph', 'email', 'phone'):
+            for pii_key in ('em', 'ph', 'email', 'phone', 'ttclid'):
                 meta_ud.pop(pii_key, None)
             meta_payload = {
                 'data': json.dumps([meta_sanitized]),
