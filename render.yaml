@@ -51,7 +51,7 @@ services:
     name: snoocommerce-browser-traffic
     runtime: python
     rootDir: server
-    buildCommand: ./build.sh
+    buildCommand: ./build-browser.sh
     schedule: "*/5 * * * *"
     startCommand: python manage.py browse_site --count 5
     envVars:
