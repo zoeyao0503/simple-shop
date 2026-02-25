@@ -1,5 +1,11 @@
 #!/usr/bin/env bash
 set -o errexit
+
+# Pin Playwright browser path so build and runtime use the same location.
+# This is also set via PLAYWRIGHT_BROWSERS_PATH in render.yaml envVars,
+# but we export it here as a safety net.
+export PLAYWRIGHT_BROWSERS_PATH="${PLAYWRIGHT_BROWSERS_PATH:-/opt/render/project/.playwright-browsers}"
+
 pip install --upgrade pip
 pip install -r requirements.txt
 
@@ -11,3 +17,5 @@ apt-get install -yq --no-install-recommends \
   fonts-liberation
 
 playwright install chromium
+echo "Chromium installed to: $PLAYWRIGHT_BROWSERS_PATH"
+ls -la "$PLAYWRIGHT_BROWSERS_PATH"
