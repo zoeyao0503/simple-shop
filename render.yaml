@@ -46,17 +46,14 @@ services:
       - key: REDDIT_PIXEL_ID
         sync: false
 
-  # --- Every-5-min headless browser traffic ---
+  # --- Every-5-min headless browser traffic (Docker for Playwright/Chromium) ---
   - type: cron
     name: snoocommerce-browser-traffic
-    runtime: python
+    runtime: docker
     rootDir: server
-    buildCommand: ./build-browser.sh
+    dockerfilePath: ./Dockerfile.browser
     schedule: "*/5 * * * *"
-    startCommand: python manage.py browse_site --count 5
     envVars:
-      - key: PLAYWRIGHT_BROWSERS_PATH
-        value: /opt/render/project/.playwright-browsers
       - key: META_ACCESS_TOKEN
         sync: false
       - key: META_PIXEL_ID
