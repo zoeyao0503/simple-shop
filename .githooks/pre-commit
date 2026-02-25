@@ -1,0 +1,79 @@
+#!/usr/bin/env bash
+#
+# Chained pre-commit hook for SnooCommerce
+#   1. Runs the corporate /opt/reddit/hooks/pre-commit (if present)
+#   2. Runs our project self-test & deployment-readiness checks
+#
+set -euo pipefail
+
+# Guard against infinite recursion: the corporate hook discovers this local
+# hook and re-invokes it, which would call the corporate hook again, etc.
+if [ "${_SNOOCOMMERCE_HOOK_RUNNING:-}" = "1" ]; then
+  exit 0
+fi
+export _SNOOCOMMERCE_HOOK_RUNNING=1
+
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+
+# ── 1. Chain corporate hook ────────────────────────────────────────────────────
+CORP_HOOK="/opt/reddit/hooks/pre-commit"
+if [ -x "$CORP_HOOK" ]; then
+  "$CORP_HOOK" "$@" || exit $?
+fi
+
+# ── 2. Run open-source pre-commit-hooks checks (yaml, json, trailing ws, etc.)
+#       These are inlined so we don't need the pre-commit Python framework.
+echo ""
+echo "── SnooCommerce pre-commit checks ──────────────────────────"
+echo ""
+
+STAGED=$(git diff --cached --name-only --diff-filter=ACMR 2>/dev/null || true)
+
+# Check YAML syntax
+for f in $STAGED; do
+  case "$f" in
+    *.yaml|*.yml)
+      if command -v python3 &>/dev/null; then
+        python3 -c "import yaml; yaml.safe_load(open('$REPO_ROOT/$f'))" 2>/dev/null || {
+          echo "ERROR: Invalid YAML: $f"
+          exit 1
+        }
+      fi
+      ;;
+  esac
+done
+
+# Check JSON syntax
+for f in $STAGED; do
+  case "$f" in
+    *.json)
+      if command -v python3 &>/dev/null; then
+        python3 -c "import json; json.load(open('$REPO_ROOT/$f'))" 2>/dev/null || {
+          echo "ERROR: Invalid JSON: $f"
+          exit 1
+        }
+      fi
+      ;;
+  esac
+done
+
+# Detect private keys
+for f in $STAGED; do
+  [ -f "$REPO_ROOT/$f" ] || continue
+  if grep -qP '-----BEGIN (RSA |DSA |EC |OPENSSH )?PRIVATE KEY-----' "$REPO_ROOT/$f" 2>/dev/null; then
+    echo "ERROR: Private key detected in staged file: $f"
+    exit 1
+  fi
+done
+
+# Check for merge conflict markers
+for f in $STAGED; do
+  [ -f "$REPO_ROOT/$f" ] || continue
+  if grep -qP '^(<<<<<<<|=======|>>>>>>>)' "$REPO_ROOT/$f" 2>/dev/null; then
+    echo "ERROR: Merge conflict marker in staged file: $f"
+    exit 1
+  fi
+done
+
+# ── 3. Project-specific self-test & deployment readiness ───────────────────────
+exec bash "$REPO_ROOT/scripts/pre-commit-checks.sh"
