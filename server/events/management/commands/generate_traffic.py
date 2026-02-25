@@ -1,3 +1,4 @@
+import copy
 import hashlib
 import json
 import random
@@ -69,6 +70,7 @@ def _send_to_tiktok(event_data, products):
 
     event_name = event_data['event_name']
     tt_event = platform_event_name(event_name, 'tiktok')
+    user_data = event_data.get('user_data', {})
     custom_data = event_data.get('custom_data', {})
 
     contents = [
@@ -80,6 +82,24 @@ def _send_to_tiktok(event_data, products):
         for p in products
     ]
 
+    tt_user = {}
+    em_list = user_data.get('em', [])
+    if em_list:
+        tt_user['email'] = em_list[0] if isinstance(em_list, list) else em_list
+    ph_list = user_data.get('ph', [])
+    if ph_list:
+        tt_user['phone_number'] = ph_list[0] if isinstance(ph_list, list) else ph_list
+
+    tt_context = {
+        'user_agent': user_data.get('client_user_agent', ''),
+        'ip': user_data.get('client_ip_address', ''),
+        'page': {
+            'url': event_data.get('event_source_url', ''),
+        },
+    }
+    if tt_user:
+        tt_context['user'] = tt_user
+
     tt_payload = {
         'pixel_code': settings.TIKTOK_PIXEL_ID,
         'event': tt_event,
@@ -87,13 +107,7 @@ def _send_to_tiktok(event_data, products):
         'timestamp': datetime.fromtimestamp(
             event_data.get('event_time', int(time.time())), tz=timezone.utc
         ).strftime('%Y-%m-%dT%H:%M:%S%z'),
-        'context': {
-            'user_agent': event_data['user_data'].get('client_user_agent', ''),
-            'ip': event_data['user_data'].get('client_ip_address', ''),
-            'page': {
-                'url': event_data.get('event_source_url', ''),
-            },
-        },
+        'context': tt_context,
         'properties': {
             'contents': contents,
             'currency': custom_data.get('currency', 'USD'),
@@ -163,6 +177,9 @@ def _send_to_reddit(event_data, products):
     email_list = user_data.get('em', [])
     if email_list:
         user['email'] = email_list[0] if isinstance(email_list, list) else email_list
+    phone_list = user_data.get('ph', [])
+    if phone_list:
+        user['external_id'] = phone_list[0] if isinstance(phone_list, list) else phone_list
     ip = user_data.get('client_ip_address')
     if ip:
         user['ip_address'] = hashlib.sha256(ip.encode()).hexdigest()
@@ -247,9 +264,13 @@ class Command(BaseCommand):
                 self.stdout.write(f'  [{i+1}/{count}] {event_name} (dry-run) id={event_id[:8]}...')
                 continue
 
-            # --- Meta CAPI ---
+            # --- Meta CAPI (strip em/ph — no PII to Meta) ---
+            meta_sanitized = copy.deepcopy(event_data)
+            meta_ud = meta_sanitized.get('user_data', {})
+            for pii_key in ('em', 'ph', 'email', 'phone'):
+                meta_ud.pop(pii_key, None)
             meta_payload = {
-                'data': json.dumps([event_data]),
+                'data': json.dumps([meta_sanitized]),
                 'access_token': settings.META_ACCESS_TOKEN,
             }
 

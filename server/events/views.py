@@ -90,6 +90,24 @@ def _send_to_tiktok(event_data):
     user_data = event_data.get('user_data', {})
     custom_data = event_data.get('custom_data', {})
 
+    tt_user = {}
+    em_list = user_data.get('em', [])
+    if em_list:
+        tt_user['email'] = em_list[0] if isinstance(em_list, list) else em_list
+    ph_list = user_data.get('ph', [])
+    if ph_list:
+        tt_user['phone_number'] = ph_list[0] if isinstance(ph_list, list) else ph_list
+
+    tt_context = {
+        'user_agent': user_data.get('client_user_agent', ''),
+        'ip': user_data.get('client_ip_address', ''),
+        'page': {
+            'url': event_data.get('event_source_url', ''),
+        },
+    }
+    if tt_user:
+        tt_context['user'] = tt_user
+
     tt_payload = {
         'pixel_code': settings.TIKTOK_PIXEL_ID,
         'event': tt_event,
@@ -97,13 +115,7 @@ def _send_to_tiktok(event_data):
         'timestamp': datetime.fromtimestamp(
             event_data.get('event_time', int(time.time())), tz=timezone.utc
         ).strftime('%Y-%m-%dT%H:%M:%S%z'),
-        'context': {
-            'user_agent': user_data.get('client_user_agent', ''),
-            'ip': user_data.get('client_ip_address', ''),
-            'page': {
-                'url': event_data.get('event_source_url', ''),
-            },
-        },
+        'context': tt_context,
         'properties': {},
     }
 
