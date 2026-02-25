@@ -1,3 +1,4 @@
+import copy
 import hashlib
 import json
 import time
@@ -46,8 +47,13 @@ def get_client_ip(request):
 
 
 def _send_to_meta(event_data):
+    sanitized = copy.deepcopy(event_data)
+    ud = sanitized.get('user_data', {})
+    for key in ('em', 'ph', 'email', 'phone'):
+        ud.pop(key, None)
+
     payload = {
-        'data': json.dumps([event_data]),
+        'data': json.dumps([sanitized]),
         'access_token': settings.META_ACCESS_TOKEN,
     }
     url = META_GRAPH_API_URL.format(pixel_id=settings.META_PIXEL_ID)
@@ -179,6 +185,9 @@ def _send_to_reddit(event_data):
     email_list = user_data.get('em', [])
     if email_list:
         user['email'] = email_list[0] if isinstance(email_list, list) else _sha256(email_list)
+    phone_list = user_data.get('ph', [])
+    if phone_list:
+        user['external_id'] = phone_list[0] if isinstance(phone_list, list) else _sha256(phone_list)
     ip = user_data.get('client_ip_address')
     if ip:
         user['ip_address'] = _sha256(ip)
