@@ -50,6 +50,7 @@ def get_client_ip(request):
 
 def _send_to_meta(event_data):
     sanitized = copy.deepcopy(event_data)
+    sanitized.pop('click_id', None)
     ud = sanitized.get('user_data', {})
     for key in ('em', 'ph', 'email', 'phone'):
         ud.pop(key, None)

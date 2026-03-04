@@ -303,6 +303,7 @@ class Command(BaseCommand):
 
             # --- Meta CAPI (strip em/ph — no PII to Meta, keep fbc) ---
             meta_sanitized = copy.deepcopy(event_data)
+            meta_sanitized.pop('click_id', None)
             meta_ud = meta_sanitized.get('user_data', {})
             for pii_key in ('em', 'ph', 'email', 'phone', 'ttclid'):
                 meta_ud.pop(pii_key, None)
