@@ -1,6 +1,7 @@
 import random
 import time
 
+import requests as http_requests
 from django.core.management.base import BaseCommand
 
 from events.fake_traffic import (
@@ -10,6 +11,8 @@ from events.fake_traffic import (
     random_ttclid,
     random_user,
 )
+
+NAV_TIMEOUT = 90_000  # 90s — covers Render free-tier cold starts
 
 
 class Command(BaseCommand):
@@ -29,6 +32,16 @@ class Command(BaseCommand):
             help='Run browser with visible UI',
         )
 
+    def _warmup(self):
+        """Wake the Render frontend + API before launching the browser."""
+        self.stdout.write('Warming up Render services...')
+        for url in [SITE_URL, f'{SITE_URL}/api/event-log']:
+            try:
+                resp = http_requests.get(url, timeout=120)
+                self.stdout.write(f'  {url} -> {resp.status_code}')
+            except Exception as e:
+                self.stdout.write(f'  {url} -> {e}')
+
     def handle(self, *args, **options):
         try:
             from playwright.sync_api import sync_playwright
@@ -41,6 +54,8 @@ class Command(BaseCommand):
         count = options['count']
         headless = options['headless']
         total_events = 0
+
+        self._warmup()
 
         self.stdout.write(f'Starting {count} browser journeys (headless={headless})...')
 
@@ -68,6 +83,8 @@ class Command(BaseCommand):
                     ),
                 )
                 page = context.new_page()
+                page.set_default_navigation_timeout(NAV_TIMEOUT)
+                page.set_default_timeout(NAV_TIMEOUT)
 
                 try:
                     journey_events = self._run_journey(page, landing_url, user, i + 1, count)
@@ -92,9 +109,10 @@ class Command(BaseCommand):
         events = 0
         prefix = f'  [{journey_num}/{total}]'
 
-        # 1. Home page -> fires PageView pixels
-        page.goto(landing_url, wait_until='networkidle')
-        page.wait_for_timeout(2000)
+        # 1. Home page — fires PageView pixels
+        page.goto(landing_url, wait_until='domcontentloaded')
+        page.wait_for_selector('button:has-text("Add to Cart")', timeout=NAV_TIMEOUT)
+        page.wait_for_timeout(3000)
         events += 1
         self.stdout.write(f'{prefix} PageView (home)')
 
@@ -104,45 +122,32 @@ class Command(BaseCommand):
         if btn_count > 0:
             idx = random.randint(0, btn_count - 1)
             add_buttons.nth(idx).click()
-            page.wait_for_timeout(1000)
+            page.wait_for_timeout(2000)
             events += 1
             self.stdout.write(f'{prefix} AddToCart')
 
         # 3. Navigate to /cart
-        page.goto(f'{SITE_URL}/cart', wait_until='networkidle')
-        page.wait_for_timeout(1500)
+        page.goto(f'{SITE_URL}/cart', wait_until='domcontentloaded')
+        page.wait_for_timeout(3000)
         events += 1
         self.stdout.write(f'{prefix} PageView (cart)')
 
-        # 4. Click "Proceed to Payment" link/button
-        pay_link = page.locator('a:has-text("Proceed to Payment"), a:has-text("Pay Now"), button:has-text("Pay")')
-        if pay_link.count() > 0:
-            pay_link.first.click()
-            page.wait_for_load_state('networkidle')
-            page.wait_for_timeout(1500)
-        else:
-            page.goto(f'{SITE_URL}/payment', wait_until='networkidle')
-            page.wait_for_timeout(1500)
+        # 4. Navigate to /payment (direct goto is more reliable than clicking links)
+        page.goto(f'{SITE_URL}/payment', wait_until='domcontentloaded')
+        page.wait_for_selector('#name', timeout=NAV_TIMEOUT)
+        page.wait_for_timeout(2000)
 
         # 5. Fill payment form with fake user data
-        name_input = page.locator('#name')
-        if name_input.count() > 0:
-            name_input.fill(user['name'])
-        email_input = page.locator('#email')
-        if email_input.count() > 0:
-            email_input.fill(user['email'])
-        phone_input = page.locator('#phone')
-        if phone_input.count() > 0:
-            phone_input.fill(user['phone'])
-        address_input = page.locator('#address')
-        if address_input.count() > 0:
-            address_input.fill('123 Fake Street, Anytown, US 90210')
+        page.fill('#name', user['name'])
+        page.fill('#email', user['email'])
+        page.fill('#phone', user['phone'])
+        page.fill('#address', '123 Fake Street, Anytown, US 90210')
 
-        # 6. Submit -> fires Purchase pixel + CAPI
+        # 6. Submit — fires Purchase pixel + CAPI
         submit_btn = page.locator('button[type="submit"]')
         if submit_btn.count() > 0:
             submit_btn.first.click()
-            page.wait_for_timeout(3000)
+            page.wait_for_timeout(5000)
             events += 1
             self.stdout.write(f'{prefix} Purchase ({user["name"]})')
 
