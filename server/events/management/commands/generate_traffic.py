@@ -11,7 +11,6 @@ from django.conf import settings
 from django.core.management.base import BaseCommand
 
 from events.fake_traffic import (
-    PRODUCTS,
     random_event_source_url,
     random_fbclid,
     random_ip,
@@ -59,7 +58,8 @@ for _name, _weight in EVENT_WEIGHTS:
     _total += _weight
     EVENT_CUMULATIVE.append(_total)
 
-PRODUCT_NAME_MAP = {str(p['id']): p['name'] for p in PRODUCTS}
+from events.fake_traffic import PRODUCTS as _ALL_PRODUCTS
+PRODUCT_NAME_MAP = {str(p['id']): p['name'] for p in _ALL_PRODUCTS}
 
 
 def pick_event_name():
@@ -265,7 +265,7 @@ class Command(BaseCommand):
                 'event_time': int(time.time()),
                 'event_id': event_id,
                 'action_source': 'website',
-                'event_source_url': random_event_source_url(event_name),
+                'event_source_url': random_event_source_url(event_name, products),
                 'user_data': user_data,
                 'custom_data': {
                     'content_type': 'product',

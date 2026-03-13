@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import styled from 'styled-components';
 import { useCart } from '../context/CartContext';
 import { sendEvent } from '../lib/trackEvent';
@@ -100,11 +101,15 @@ export default function ProductCard({ product }) {
 
   return (
     <Card>
-      <ImageWrapper>
-        <Img src={product.image} alt={product.name} loading="lazy" />
-      </ImageWrapper>
+      <Link to={`/product/${product.id}`} style={{ textDecoration: 'none', color: 'inherit' }}>
+        <ImageWrapper>
+          <Img src={product.image} alt={product.name} loading="lazy" />
+        </ImageWrapper>
+      </Link>
       <Body>
-        <Name>{product.name}</Name>
+        <Link to={`/product/${product.id}`} style={{ textDecoration: 'none', color: 'inherit' }}>
+          <Name>{product.name}</Name>
+        </Link>
         <Description>{product.description}</Description>
         <Bottom>
           <Price>${product.price.toFixed(2)}</Price>

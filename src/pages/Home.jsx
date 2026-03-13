@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import styled from 'styled-components';
 import ProductCard from '../components/ProductCard';
 import LeadForm from '../components/LeadForm';
@@ -49,6 +49,31 @@ const UpvoteIcon = styled.span`
   margin-right: ${({ theme }) => theme.spacing.xs};
 `;
 
+const FilterBar = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: ${({ theme }) => theme.spacing.sm};
+  padding: ${({ theme }) => `0 ${theme.spacing.xl} ${theme.spacing.xl}`};
+  max-width: 1200px;
+  margin: 0 auto;
+`;
+
+const FilterButton = styled.button`
+  padding: ${({ theme }) => `${theme.spacing.sm} ${theme.spacing.lg}`};
+  border-radius: ${({ theme }) => theme.borderRadius.full};
+  font-size: 0.8125rem;
+  font-weight: 600;
+  transition: all 0.2s;
+  background: ${({ $active, theme }) => ($active ? theme.colors.primary : theme.colors.surface)};
+  color: ${({ $active, theme }) => ($active ? '#fff' : theme.colors.text)};
+  border: 1px solid ${({ $active, theme }) => ($active ? theme.colors.primary : theme.colors.border)};
+
+  &:hover {
+    background: ${({ $active, theme }) => ($active ? theme.colors.primaryHover : theme.colors.border)};
+  }
+`;
+
 const Grid = styled.section`
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
@@ -64,17 +89,27 @@ const LeadSection = styled.section`
   background: ${({ theme }) => theme.colors.background};
 `;
 
+const ALL = 'All';
+const categories = [ALL, ...Array.from(new Set(products.map((p) => p.category)))];
+
 export default function Home() {
+  const [activeCategory, setActiveCategory] = useState(ALL);
+
+  const filtered = useMemo(
+    () => (activeCategory === ALL ? products : products.filter((p) => p.category === activeCategory)),
+    [activeCategory],
+  );
+
   useEffect(() => {
     sendEvent({
       eventName: 'ViewContent',
       customData: {
-        content_type: 'product',
-        content_ids: products.map((p) => String(p.id)),
-        content_names: products.map((p) => p.name),
+        content_type: 'product_group',
+        content_ids: filtered.map((p) => String(p.id)),
+        content_names: filtered.map((p) => p.name),
       },
     });
-  }, []);
+  }, [filtered]);
 
   return (
     <>
@@ -101,8 +136,15 @@ export default function Home() {
       <div style={{ paddingTop: '2rem' }}>
         <SectionTitle><UpvoteIcon>&#9650;</UpvoteIcon> Trending Products</SectionTitle>
       </div>
+      <FilterBar>
+        {categories.map((cat) => (
+          <FilterButton key={cat} $active={activeCategory === cat} onClick={() => setActiveCategory(cat)}>
+            {cat}
+          </FilterButton>
+        ))}
+      </FilterBar>
       <Grid>
-        {products.map((product) => (
+        {filtered.map((product) => (
           <ProductCard key={product.id} product={product} />
         ))}
       </Grid>
