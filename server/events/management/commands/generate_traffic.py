@@ -24,7 +24,7 @@ from events.views import _append_log
 
 META_GRAPH_API_URL = 'https://graph.facebook.com/v24.0/{pixel_id}/events'
 TIKTOK_EVENTS_API_URL = 'https://business-api.tiktok.com/open_api/v1.3/pixel/track/'
-REDDIT_CAPI_URL = 'https://ads-api.reddit.com/api/v2.0/conversions/events/{account_id}'
+REDDIT_CAPI_URL = 'https://ads-api.reddit.com/api/v3/pixels/{pixel_id}/conversion_events'
 
 EVENT_MAP = {
     'ViewContent': {'meta': 'ViewContent', 'tiktok': 'ViewContent', 'reddit': 'ViewContent'},
@@ -34,10 +34,14 @@ EVENT_MAP = {
 }
 
 REDDIT_TRACKING_TYPE = {
-    'ViewContent': 'ViewContent',
-    'AddToCart':   'AddToCart',
-    'Purchase':    'Purchase',
-    'Lead':        'Lead',
+    'ViewContent': 'VIEW_CONTENT',
+    'AddToCart':   'ADD_TO_CART',
+    'Purchase':    'PURCHASE',
+    'Lead':        'LEAD',
+    'PageVisit':   'PAGE_VISIT',
+    'Search':      'SEARCH',
+    'SignUp':      'SIGN_UP',
+    'AddToWishlist': 'ADD_TO_WISHLIST',
 }
 
 
@@ -138,6 +142,7 @@ def _send_to_tiktok(event_data, products):
 
 
 def _send_to_reddit(event_data, products):
+    """Send conversion event to Reddit CAPI v3."""
     if not settings.REDDIT_ACCESS_TOKEN:
         return None, None
 
@@ -149,29 +154,33 @@ def _send_to_reddit(event_data, products):
     user_data = event_data.get('user_data', {})
     custom_data = event_data.get('custom_data', {})
 
-    event_at = datetime.fromtimestamp(
-        event_data.get('event_time', int(time.time())), tz=timezone.utc
-    ).strftime('%Y-%m-%dT%H:%M:%SZ')
+    event_time = event_data.get('event_time', int(time.time()))
+    event_at_ms = event_time * 1000
 
     reddit_event = {
-        'event_at': event_at,
-        'event_type': {
+        'event_at': event_at_ms,
+        'action_source': 'WEBSITE',
+        'type': {
             'tracking_type': tracking_type,
         },
     }
+
+    event_source_url = event_data.get('event_source_url')
+    if event_source_url:
+        reddit_event['event_source_url'] = event_source_url
 
     click_id = event_data.get('click_id')
     if click_id:
         reddit_event['click_id'] = click_id
 
-    event_metadata = {}
+    metadata = {}
     event_id = event_data.get('event_id')
     if event_id:
-        event_metadata['conversion_id'] = event_id
+        metadata['conversion_id'] = event_id
     if custom_data.get('value') is not None:
-        event_metadata['value'] = int(round(custom_data['value'] * 100))
+        metadata['value'] = round(custom_data['value'], 2)
     if custom_data.get('currency'):
-        event_metadata['currency'] = custom_data['currency']
+        metadata['currency'] = custom_data['currency']
     rdt_products = [
         {
             'id': str(p['id']),
@@ -181,10 +190,10 @@ def _send_to_reddit(event_data, products):
         for p in products
     ]
     if rdt_products:
-        event_metadata['products'] = rdt_products
-        event_metadata['item_count'] = len(rdt_products)
-    if event_metadata:
-        reddit_event['event_metadata'] = event_metadata
+        metadata['products'] = rdt_products
+        metadata['item_count'] = len(rdt_products)
+    if metadata:
+        reddit_event['metadata'] = metadata
 
     user = {}
     email_list = user_data.get('em', [])
@@ -192,7 +201,7 @@ def _send_to_reddit(event_data, products):
         user['email'] = email_list[0] if isinstance(email_list, list) else email_list
     phone_list = user_data.get('ph', [])
     if phone_list:
-        user['external_id'] = phone_list[0] if isinstance(phone_list, list) else phone_list
+        user['phone_number'] = phone_list[0] if isinstance(phone_list, list) else phone_list
     ip = user_data.get('client_ip_address')
     if ip:
         user['ip_address'] = hashlib.sha256(ip.encode()).hexdigest()
@@ -202,8 +211,12 @@ def _send_to_reddit(event_data, products):
     if user:
         reddit_event['user'] = user
 
-    url = REDDIT_CAPI_URL.format(account_id=settings.REDDIT_PIXEL_ID)
-    payload = {'events': [reddit_event]}
+    url = REDDIT_CAPI_URL.format(pixel_id=settings.REDDIT_PIXEL_ID)
+    payload = {
+        'data': {
+            'events': [reddit_event],
+        },
+    }
     headers = {
         'Content-Type': 'application/json',
         'Authorization': f'Bearer {settings.REDDIT_ACCESS_TOKEN}',
