@@ -28,6 +28,23 @@ npm run build
 
 Output is in the `dist/` folder.
 
+## Local Reddit LEAD CAPI Job
+
+The additional Reddit LEAD-only CAPI job sends standard `LEAD` events to pixel `p2_18kzhk31x1bzs` without changing the deployed Render cron jobs.
+
+Set the token locally in `.env`:
+
+```bash
+REDDIT_LEAD_CAPI_ACCESS_TOKEN=
+REDDIT_LEAD_CAPI_PIXEL_ID=p2_18kzhk31x1bzs
+```
+
+Run the job manually:
+
+```bash
+./scripts/send-reddit-leads.sh
+```
+
 ## Deploy to Netlify
 
 1. Push this repo to GitHub.
