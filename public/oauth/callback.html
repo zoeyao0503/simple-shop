@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'">
+  <title>Reddit OAuth callback · SnooCommerce</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #f6f7f8; color: #1a1a1b; font: 16px/1.5 system-ui, sans-serif; }
+    main { width: min(640px, calc(100% - 32px)); margin: 64px auto; padding: 32px; background: white; border: 1px solid #ddd; border-radius: 12px; }
+    h1 { margin-top: 0; font-size: 1.6rem; }
+    label { display: block; margin-top: 20px; font-weight: 600; }
+    textarea, input { width: 100%; margin-top: 6px; padding: 10px; border: 1px solid #999; border-radius: 6px; font: 14px/1.5 monospace; }
+    textarea { resize: vertical; }
+    button { margin-top: 16px; padding: 10px 16px; border: 0; border-radius: 6px; background: #d93900; color: white; font: inherit; cursor: pointer; }
+    button:disabled { background: #777; cursor: default; }
+    .note { color: #555; font-size: .9rem; }
+    [hidden] { display: none; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Reddit OAuth callback</h1>
+    <p id="status" role="status" aria-live="polite">Waiting for an OAuth redirect.</p>
+    <section id="result" hidden>
+      <label for="returned-state">Returned state</label>
+      <input id="returned-state" readonly autocomplete="off">
+      <label for="expected-state">State from your authorization request</label>
+      <input id="expected-state" autocomplete="off" spellcheck="false" placeholder="Paste the original state to verify this response">
+      <p id="state-status" role="status" aria-live="polite">Verify the state before using this code.</p>
+      <label for="authorization-code">Authorization code</label>
+      <textarea id="authorization-code" rows="3" readonly autocomplete="off" spellcheck="false"></textarea>
+      <button id="copy-code" type="button" disabled>Copy authorization code</button>
+    </section>
+    <p class="note">For manual testing. This page does not exchange codes or request your client secret. Keep the code private and exchange it promptly using the same redirect URI.</p>
+    <noscript>Enable JavaScript to view the OAuth response.</noscript>
+  </main>
+  <script>
+    const parameters = new URLSearchParams(window.location.search);
+    window.history.replaceState(null, '', window.location.pathname);
+
+    const status = document.getElementById('status');
+    const result = document.getElementById('result');
+    const returnedState = document.getElementById('returned-state');
+    const expectedState = document.getElementById('expected-state');
+    const stateStatus = document.getElementById('state-status');
+    const authorizationCode = document.getElementById('authorization-code');
+    const copyCode = document.getElementById('copy-code');
+    const codes = parameters.getAll('code');
+    const states = parameters.getAll('state');
+    const errors = parameters.getAll('error');
+
+    if (errors.length) {
+      status.textContent = `Authorization failed: ${errors[0] || 'unknown error'}. Start a new authorization request.`;
+    } else if (codes.length) {
+      if (codes.length !== 1 || !codes[0] || states.length !== 1 || !states[0]) {
+        status.textContent = 'Invalid OAuth response: one code and one non-empty state are required. Start a new authorization request.';
+      } else {
+        status.textContent = 'Authorization code received. Verify the state, then copy the code for your token exchange.';
+        result.hidden = false;
+        returnedState.value = states[0];
+        authorizationCode.value = codes[0];
+      }
+    } else {
+      status.textContent = 'Ready for your OAuth redirect. Register this page’s URL as the app’s redirect URI and use it in your authorization request.';
+    }
+
+    expectedState.addEventListener('input', () => {
+      const matches = expectedState.value !== '' && expectedState.value === returnedState.value;
+      copyCode.disabled = !matches;
+      stateStatus.textContent = matches ? 'State matches.' : 'State does not match yet. Do not exchange the code until it matches.';
+      copyCode.textContent = 'Copy authorization code';
+    });
+
+    copyCode.addEventListener('click', async () => {
+      if (expectedState.value === '' || expectedState.value !== returnedState.value) return;
+      try {
+        await navigator.clipboard.writeText(authorizationCode.value);
+        copyCode.textContent = 'Copied';
+      } catch {
+        authorizationCode.focus();
+        authorizationCode.select();
+        stateStatus.textContent = 'Clipboard unavailable. Copy the selected code manually.';
+      }
+    });
+  </script>
+</body>
+</html>

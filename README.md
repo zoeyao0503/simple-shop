@@ -28,6 +28,18 @@ npm run build
 
 Output is in the `dist/` folder.
 
+## Reddit OAuth callback
+
+After deploying, register this exact redirect URI in the developer app:
+
+```text
+https://snoocommerce.onrender.com/oauth/callback.html
+```
+
+Use the same URI in the authorization request and token exchange. Request `scope=adsread` and generate a fresh random `state` for each authorization. After consent, the callback displays the returned code and state; paste your original state to verify it and enable the copy button. Exchange the one-time code promptly with your local token client. The callback itself does not exchange tokens, accept client secrets, store codes, or load the storefront's advertising pixels. It removes the query and fragment from the address bar after reading the response; refreshing clears the result.
+
+The page is a standalone static asset copied to `dist/oauth/callback.html` by `npm run build`. Render serves existing files before the storefront's catch-all rewrite, so no API backend or routing change is required.
+
 ## Local Reddit LEAD CAPI Job
 
 The additional Reddit LEAD-only CAPI job sends standard `LEAD` events to pixel `p2_18kzhk31x1bzs` without changing the deployed Render cron jobs.
