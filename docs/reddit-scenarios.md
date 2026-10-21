@@ -14,8 +14,11 @@ integrations remain available; this runner does not invoke them.
 | a2_ibjroms8g8bo | AddToWishlist | CAPI, null score | 5/day |
 | p2_17hhlij2ehubf | Search + Lead | CAPI, low KDF | 10,001 Search + 1 Lead/day |
 
-Contact needs the pixel's lead-gen feature enabled. Do not interpret a hidden
-event as dispatch failure. Custom events use `type.tracking_type=CUSTOM` and
+Contact is configured but disabled by REDDIT_TEST_CONTACT_ENABLED=false
+after the live CAPI endpoint rejected it with 400. Confirm pixel-scoped
+`ads_conversion_lead_gen` eligibility and compatible deployment, then set
+REDDIT_TEST_CONTACT_ENABLED=true. A hidden API event is distinct from failed
+ingestion. Custom events use `type.tracking_type=CUSTOM` and
 `type.custom_event_name`; validate both exact names in detail API calls.
 
 ## Preview and configuration
@@ -38,12 +41,12 @@ does not guarantee a positive match score. No random click IDs are generated.
 ## Cadence and budgets
 
 Rapid mode: set REDDIT_TEST_MODE=rapid and cron schedule `*/5 * * * *`.
-Daily mode: set REDDIT_TEST_MODE=daily and cron schedule `10 21 * * *`.
+Daily mode: set REDDIT_TEST_MODE=daily and cron schedule `20 21 * * *`.
 Update BOTH settings when switching; keeping the five-minute schedule in
 daily mode still starts containers and consumes runtime.
 
 AddToWishlist and the KDF pixel are sent only in the daily five-minute slot,
-21:10–21:14 UTC by default, in either mode. Set REDDIT_TEST_DAILY_UTC=HH:MM
+21:20–21:24 UTC by default, in either mode. Set REDDIT_TEST_DAILY_UTC=HH:MM
 on a five-minute boundary to move it; also align the daily cron schedule.
 Choose an upcoming slot before starting rapid testing to populate those
 cases promptly, then keep it fixed. There is no extra seeding command.

@@ -34,8 +34,10 @@ services:
     envVars:
       - key: REDDIT_TEST_MODE
         value: "rapid"
+      - key: REDDIT_TEST_CONTACT_ENABLED
+        value: "false"
       - key: REDDIT_TEST_DAILY_UTC
-        value: "21:10"
+        value: "21:20"
       - key: REDDIT_PIXEL_ID
         value: "a2_ibjroms8g8bo"
       - key: REDDIT_TEST_KDF_PIXEL_ID

@@ -21,14 +21,14 @@ SCENARIOS = (
 BROWSER_NAMES = {'VIEW_CONTENT': 'ViewContent', 'ADD_TO_CART': 'AddToCart'}
 
 
-def build_plan(now, mode, daily_slot):
+def build_plan(now, mode, daily_slot, include_contact=True):
     minute = now.hour * 60 + now.minute
     daily = minute // 5 == daily_slot // 5
     if mode == 'daily' and not daily:
         return []
     slot = now.strftime('%Y-%m-%dT%H:') + str(now.minute // 5)
     plan = [dict(kind=k, channel=c, custom=n, count=20, target='main', slot=slot)
-            for k, c, n in SCENARIOS]
+            for k, c, n in SCENARIOS if include_contact or k != 'CONTACT']
     if daily:
         date = now.strftime('%Y-%m-%d')
         plan.extend([
@@ -78,13 +78,14 @@ class Command(BaseCommand):
         if mode not in ('daily', 'rapid'):
             raise CommandError('REDDIT_TEST_MODE must be daily or rapid')
         try:
-            hour, minute = map(int, os.getenv('REDDIT_TEST_DAILY_UTC', '21:10').split(':'))
+            hour, minute = map(int, os.getenv('REDDIT_TEST_DAILY_UTC', '21:20').split(':'))
             if not (0 <= hour < 24 and minute in range(0, 60, 5)):
                 raise ValueError
         except ValueError:
             raise CommandError('REDDIT_TEST_DAILY_UTC must be HH:MM on a five-minute boundary')
         now = datetime.now(timezone.utc)
-        plan = build_plan(now, mode, hour * 60 + minute)
+        plan = build_plan(now, mode, hour * 60 + minute,
+                          include_contact=os.getenv('REDDIT_TEST_CONTACT_ENABLED', 'false').lower() == 'true')
         self.stdout.write(json.dumps({'mode': mode, 'execute': options['execute'], 'scenarios': plan}))
         if not options['execute'] or not plan:
             return

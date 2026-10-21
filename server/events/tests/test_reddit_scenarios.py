@@ -14,6 +14,14 @@ class RedditScenarioTests(SimpleTestCase):
         self.assertEqual(failure_message(response, {'main': 'first-private', 'kdf': 'second-private'}),
                          'Invalid [REDACTED] / [REDACTED]')
 
+    def test_disabled_contact_does_not_block_other_scenarios_or_daily_budgets(self):
+        now = datetime(2026, 10, 21, 12, tzinfo=timezone.utc)
+        plan = build_plan(now, 'rapid', 720, include_contact=False)
+        self.assertNotIn('CONTACT', [s['kind'] for s in plan])
+        self.assertEqual(sum(s['count'] for s in plan if s['kind'] == 'ADD_TO_WISHLIST'), 5)
+        self.assertEqual(sum(s['count'] for s in plan if s['target'] == 'kdf'), 10002)
+        self.assertEqual(len([s for s in plan if s['kind'] == 'CUSTOM']), 2)
+
     def test_null_budget_across_eight_calendar_days_of_rapid_runs(self):
         start = datetime(2026, 10, 21, tzinfo=timezone.utc)
         totals = {'ADD_TO_WISHLIST': 0, 'LEAD': 0}
