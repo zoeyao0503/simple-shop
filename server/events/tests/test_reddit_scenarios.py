@@ -3,11 +3,17 @@ from unittest.mock import MagicMock, patch
 
 from django.test import SimpleTestCase, override_settings
 
-from events.management.commands.run_reddit_scenarios import build_plan, make_event
+from events.management.commands.run_reddit_scenarios import build_plan, make_event, failure_message
 from events.views import _send_to_reddit
 
 
 class RedditScenarioTests(SimpleTestCase):
+    def test_api_error_redacts_both_tokens_before_truncating(self):
+        response = MagicMock()
+        response.json.return_value = {'error': {'message': 'Invalid first-private / second-private'}}
+        self.assertEqual(failure_message(response, {'main': 'first-private', 'kdf': 'second-private'}),
+                         'Invalid [REDACTED] / [REDACTED]')
+
     def test_null_budget_across_eight_calendar_days_of_rapid_runs(self):
         start = datetime(2026, 10, 21, tzinfo=timezone.utc)
         totals = {'ADD_TO_WISHLIST': 0, 'LEAD': 0}

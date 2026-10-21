@@ -52,6 +52,20 @@ def make_event(scenario, index, pixel, now, site, user):
     }
 
 
+def failure_message(response, tokens):
+    try:
+        body = response.json()
+        error = body.get('error', body) if isinstance(body, dict) else {}
+        message = error.get('message', '') if isinstance(error, dict) else error
+        if not isinstance(message, str):
+            return 'No safe error message'
+        for token in tokens.values():
+            message = message.replace(token, '[REDACTED]')
+        return message[:500].replace('\n', ' ')
+    except ValueError:
+        return 'Non-JSON error response'
+
+
 class Command(BaseCommand):
     help = 'Run bounded Reddit-only Data Quality scenarios; defaults to an offline preview'
 
@@ -113,7 +127,7 @@ class Command(BaseCommand):
                                     json={'data': {'events': events[start:start + 1000]}}, timeout=30,
                                 )
                                 if not response.ok:
-                                    raise CommandError(f"Reddit CAPI HTTP {response.status_code} for {scenario['target']}; stopped without retry")
+                                    raise CommandError(f"Reddit CAPI HTTP {response.status_code} for {scenario['target']} {scenario['kind']}: {failure_message(response, tokens)}; stopped without retry")
                         self.stdout.write(f"Dispatched {scenario['count']} {scenario['kind']} via {scenario['channel']} to {scenario['target']}")
                 finally:
                     browser.close()
