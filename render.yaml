@@ -34,6 +34,8 @@ services:
     envVars:
       - key: REDDIT_TEST_MODE
         value: "rapid"
+      - key: REDDIT_TEST_KDF_ENABLED
+        value: "false"
       - key: REDDIT_TEST_CONTACT_ENABLED
         value: "false"
       - key: REDDIT_TEST_DAILY_UTC

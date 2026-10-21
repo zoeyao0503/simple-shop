@@ -21,7 +21,7 @@ SCENARIOS = (
 BROWSER_NAMES = {'VIEW_CONTENT': 'ViewContent', 'ADD_TO_CART': 'AddToCart'}
 
 
-def build_plan(now, mode, daily_slot, include_contact=True):
+def build_plan(now, mode, daily_slot, include_contact=True, include_kdf=True):
     minute = now.hour * 60 + now.minute
     daily = minute // 5 == daily_slot // 5
     if mode == 'daily' and not daily:
@@ -31,11 +31,12 @@ def build_plan(now, mode, daily_slot, include_contact=True):
             for k, c, n in SCENARIOS if include_contact or k != 'CONTACT']
     if daily:
         date = now.strftime('%Y-%m-%d')
-        plan.extend([
-            dict(kind='ADD_TO_WISHLIST', channel='capi', custom=None, count=5, target='main', slot=date),
-            dict(kind='SEARCH', channel='capi', custom=None, count=10001, target='kdf', slot=date),
-            dict(kind='LEAD', channel='capi', custom=None, count=1, target='kdf', slot=date),
-        ])
+        plan.append(dict(kind='ADD_TO_WISHLIST', channel='capi', custom=None, count=5, target='main', slot=date))
+        if include_kdf:
+            plan.extend([
+                dict(kind='SEARCH', channel='capi', custom=None, count=10001, target='kdf', slot=date),
+                dict(kind='LEAD', channel='capi', custom=None, count=1, target='kdf', slot=date),
+            ])
     return plan
 
 
@@ -85,15 +86,17 @@ class Command(BaseCommand):
             raise CommandError('REDDIT_TEST_DAILY_UTC must be HH:MM on a five-minute boundary')
         now = datetime.now(timezone.utc)
         plan = build_plan(now, mode, hour * 60 + minute,
-                          include_contact=os.getenv('REDDIT_TEST_CONTACT_ENABLED', 'false').lower() == 'true')
+                          include_contact=os.getenv('REDDIT_TEST_CONTACT_ENABLED', 'false').lower() == 'true',
+                          include_kdf=os.getenv('REDDIT_TEST_KDF_ENABLED', 'false').lower() == 'true')
         self.stdout.write(json.dumps({'mode': mode, 'execute': options['execute'], 'scenarios': plan}))
         if not options['execute'] or not plan:
             return
         pixels = {'main': settings.REDDIT_PIXEL_ID, 'kdf': os.getenv('REDDIT_TEST_KDF_PIXEL_ID', '')}
         tokens = {'main': os.getenv('REDDIT_FIRST_PIXEL_TOKEN') or settings.REDDIT_ACCESS_TOKEN,
                   'kdf': settings.REDDIT_ACCESS_TOKEN}
-        if not all(tokens.values()) or not pixels['main'] or not pixels['kdf'] or pixels['main'] == pixels['kdf']:
-            raise CommandError('Set REDDIT_ACCESS_TOKEN and distinct REDDIT_PIXEL_ID / REDDIT_TEST_KDF_PIXEL_ID')
+        targets = {scenario['target'] for scenario in plan}
+        if any(not tokens[target] or not pixels[target] for target in targets) or ('kdf' in targets and pixels['main'] == pixels['kdf']):
+            raise CommandError('Set valid credentials and distinct pixel IDs for the active scenarios')
         site = os.getenv('REDDIT_TEST_SITE_URL', 'https://snoocommerce.onrender.com').rstrip('/')
         if urlsplit(site).scheme != 'https' or urlsplit(site).hostname != 'snoocommerce.onrender.com':
             raise CommandError('REDDIT_TEST_SITE_URL must use https://snoocommerce.onrender.com')

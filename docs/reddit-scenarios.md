@@ -90,3 +90,21 @@ null score with <100 events, and pixel-wide KDF advice without event filters.
 Repeat final acceptance against deployed native V4/nested API. Existing
 V3 flat results do not establish V4 acceptance. Nonzero scoring still needs
 realistic, accepted test identities; this runner does not promise it.
+
+## Live dispatch checkpoint — October 21, 2026
+
+The deployed runner completed the five main-pixel scenarios at 14:15 PDT:
+Pixel ViewContent, CAPI Search, dual AddToCart and both custom names. At
+14:20 PDT it also dispatched five AddToWishlist events. These are transport
+results, not acceptance of API scores, dedup counts or recommendations.
+
+Contact returned 400 (all events invalid) and remains disabled. The CAPI
+implementation gates these types by pixel-scoped ads_conversion_lead_gen;
+live eligibility has not been established.
+
+The KDF pixel's first Search batch returned 401 using REDDIT_ACCESS_TOKEN;
+no KDF Search/Lead dispatch succeeded. REDDIT_TEST_KDF_ENABLED=false
+prevents repeated failures. Replace this runner-local token with one valid
+for p2_17hhlij2ehubf, then set REDDIT_TEST_KDF_ENABLED=true in render.yaml
+and Render. Do not rerun the main-pixel daily slot just to test the KDF token;
+the five AddToWishlist events have already been sent today.

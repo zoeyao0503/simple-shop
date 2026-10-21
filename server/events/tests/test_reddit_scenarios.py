@@ -22,6 +22,12 @@ class RedditScenarioTests(SimpleTestCase):
         self.assertEqual(sum(s['count'] for s in plan if s['target'] == 'kdf'), 10002)
         self.assertEqual(len([s for s in plan if s['kind'] == 'CUSTOM']), 2)
 
+    def test_disabled_kdf_preserves_the_main_pixel_null_budget(self):
+        now = datetime(2026, 10, 21, 12, tzinfo=timezone.utc)
+        plan = build_plan(now, 'rapid', 720, include_contact=False, include_kdf=False)
+        self.assertFalse(any(s['target'] == 'kdf' for s in plan))
+        self.assertEqual(sum(s['count'] for s in plan if s['kind'] == 'ADD_TO_WISHLIST'), 5)
+
     def test_null_budget_across_eight_calendar_days_of_rapid_runs(self):
         start = datetime(2026, 10, 21, tzinfo=timezone.utc)
         totals = {'ADD_TO_WISHLIST': 0, 'LEAD': 0}
@@ -97,7 +103,7 @@ class RedditScenarioTests(SimpleTestCase):
         page.expect_response.return_value.__enter__.return_value.value.ok = True
         noon = datetime(2026, 10, 21, 12, tzinfo=timezone.utc)
         with patch.dict(sys.modules, {'playwright': ModuleType('playwright'), 'playwright.sync_api': module}), \
-                patch.dict('os.environ', {'REDDIT_TEST_KDF_PIXEL_ID': 'kdf-pixel', 'REDDIT_TEST_DAILY_UTC': '12:00', 'REDDIT_FIRST_PIXEL_TOKEN': 'main-test-token'}), \
+                patch.dict('os.environ', {'REDDIT_TEST_KDF_PIXEL_ID': 'kdf-pixel', 'REDDIT_TEST_DAILY_UTC': '12:00', 'REDDIT_FIRST_PIXEL_TOKEN': 'main-test-token', 'REDDIT_TEST_KDF_ENABLED': 'true'}), \
                 patch('events.management.commands.run_reddit_scenarios.datetime') as clock, \
                 patch('events.management.commands.run_reddit_scenarios.requests.post') as post:
             clock.now.return_value = noon
