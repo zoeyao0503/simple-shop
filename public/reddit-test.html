@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="robots" content="noindex">
+  <title>SnooCommerce Reddit test harness</title>
+</head>
+<body>
+  <p>Reddit-only test harness. Events are sent by the scheduled runner.</p>
+  <p id="status">Loading Reddit Pixel SDK...</p>
+  <script>
+    window.rdt = function () {
+      window.rdt.sendEvent ? window.rdt.sendEvent.apply(window.rdt, arguments) : window.rdt.callQueue.push(arguments);
+    };
+    window.rdt.callQueue = [];
+  </script>
+  <script src="https://www.redditstatic.com/ads/pixel.js" onload="window.redditTestReady = typeof window.rdt.sendEvent === 'function'; document.getElementById('status').textContent = window.redditTestReady ? 'Reddit Pixel SDK ready. No events sent.' : 'Reddit Pixel SDK failed to initialize.'"></script>
+</body>
+</html>

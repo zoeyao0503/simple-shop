@@ -69,3 +69,10 @@ Run the job manually:
 - Vite
 - Styled Components
 - React Router v6
+
+## Reddit Data Quality test scenarios
+
+See [the runner guide](docs/reddit-scenarios.md) for the event matrix, budgets,
+rapid/daily schedules, rollout steps and live acceptance checks. The existing
+`browse_site` and `generate_traffic` commands are legacy traffic sources; do not
+run them alongside the isolated scenarios.

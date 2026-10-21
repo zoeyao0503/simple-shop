@@ -9,4 +9,4 @@ RUN pip install --no-cache-dir -r requirements.txt && \
 
 COPY . .
 
-CMD ["python", "manage.py", "browse_site", "--count", "5"]
+CMD ["python", "manage.py", "run_reddit_scenarios", "--execute"]

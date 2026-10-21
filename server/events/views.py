@@ -171,7 +171,7 @@ def _build_reddit_products(custom_data):
 
 def _send_to_reddit(event_data):
     """Send conversion event to Reddit CAPI v3."""
-    if not settings.REDDIT_ACCESS_TOKEN:
+    if not settings.REDDIT_ACCESS_TOKEN or event_data['event_name'] == 'ViewContent':
         return None, None
 
     event_name = event_data['event_name']

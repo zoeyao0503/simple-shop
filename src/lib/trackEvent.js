@@ -77,7 +77,7 @@ export async function sendEvent({ eventName, eventSourceUrl, userData = {}, cust
   }
 
   // --- Reddit Pixel (browser-side, with conversion_id for dedup) ---
-  if (typeof window.rdt === 'function') {
+  if (typeof window.rdt === 'function' && !['Search', 'Contact', 'AddToWishlist'].includes(eventName)) {
     const rdtEvent = platformEventName(eventName, 'reddit');
     const rdtProps = { conversion_id: eventId };
     if (customData.value != null) rdtProps.value = customData.value;
