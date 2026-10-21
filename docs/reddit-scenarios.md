@@ -14,10 +14,9 @@ integrations remain available; this runner does not invoke them.
 | a2_ibjroms8g8bo | AddToWishlist | CAPI, null score | 5/day |
 | p2_17hhlij2ehubf | Search + Lead | CAPI, low KDF | 10,001 Search + 1 Lead/day |
 
-Contact is configured but disabled by REDDIT_TEST_CONTACT_ENABLED=false
-after the live CAPI endpoint rejected it with 400. Confirm pixel-scoped
-`ads_conversion_lead_gen` eligibility and compatible deployment, then set
-REDDIT_TEST_CONTACT_ENABLED=true. A hidden API event is distinct from failed
+Contact is enabled with REDDIT_TEST_CONTACT_ENABLED=true. After the owner
+updated DDG eligibility, a live run on October 21 at 14:28 PDT dispatched
+20 Contact events successfully. A hidden API event is distinct from failed
 ingestion. Custom events use `type.tracking_type=CUSTOM` and
 `type.custom_event_name`; validate both exact names in detail API calls.
 
@@ -98,9 +97,9 @@ Pixel ViewContent, CAPI Search, dual AddToCart and both custom names. At
 14:20 PDT it also dispatched five AddToWishlist events. These are transport
 results, not acceptance of API scores, dedup counts or recommendations.
 
-Contact returned 400 (all events invalid) and remains disabled. The CAPI
-implementation gates these types by pixel-scoped ads_conversion_lead_gen;
-live eligibility has not been established.
+Contact initially returned 400 (all events invalid). After the owner reported
+a DDG update, the 14:28 PDT run dispatched 20 Contact events and completed
+successfully. No DDG configuration was changed by this agent.
 
 The KDF pixel's first Search batch returned 401 using REDDIT_ACCESS_TOKEN;
 no KDF Search/Lead dispatch succeeded. REDDIT_TEST_KDF_ENABLED=false
