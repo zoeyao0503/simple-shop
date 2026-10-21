@@ -35,7 +35,7 @@ services:
       - key: REDDIT_TEST_MODE
         value: "rapid"
       - key: REDDIT_TEST_DAILY_UTC
-        value: "12:00"
+        value: "21:10"
       - key: REDDIT_PIXEL_ID
         value: "a2_ibjroms8g8bo"
       - key: REDDIT_TEST_KDF_PIXEL_ID

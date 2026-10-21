@@ -64,7 +64,7 @@ class Command(BaseCommand):
         if mode not in ('daily', 'rapid'):
             raise CommandError('REDDIT_TEST_MODE must be daily or rapid')
         try:
-            hour, minute = map(int, os.getenv('REDDIT_TEST_DAILY_UTC', '12:00').split(':'))
+            hour, minute = map(int, os.getenv('REDDIT_TEST_DAILY_UTC', '21:10').split(':'))
             if not (0 <= hour < 24 and minute in range(0, 60, 5)):
                 raise ValueError
         except ValueError:

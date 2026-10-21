@@ -38,12 +38,12 @@ does not guarantee a positive match score. No random click IDs are generated.
 ## Cadence and budgets
 
 Rapid mode: set REDDIT_TEST_MODE=rapid and cron schedule `*/5 * * * *`.
-Daily mode: set REDDIT_TEST_MODE=daily and cron schedule `0 12 * * *`.
+Daily mode: set REDDIT_TEST_MODE=daily and cron schedule `10 21 * * *`.
 Update BOTH settings when switching; keeping the five-minute schedule in
 daily mode still starts containers and consumes runtime.
 
 AddToWishlist and the KDF pixel are sent only in the daily five-minute slot,
-12:00–12:04 UTC by default, in either mode. Set REDDIT_TEST_DAILY_UTC=HH:MM
+21:10–21:14 UTC by default, in either mode. Set REDDIT_TEST_DAILY_UTC=HH:MM
 on a five-minute boundary to move it; also align the daily cron schedule.
 Choose an upcoming slot before starting rapid testing to populate those
 cases promptly, then keep it fixed. There is no extra seeding command.
