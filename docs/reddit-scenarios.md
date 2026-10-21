@@ -101,9 +101,13 @@ Contact initially returned 400 (all events invalid). After the owner reported
 a DDG update, the 14:28 PDT run dispatched 20 Contact events and completed
 successfully. No DDG configuration was changed by this agent.
 
-The KDF pixel's first Search batch returned 401 using REDDIT_ACCESS_TOKEN;
-no KDF Search/Lead dispatch succeeded. REDDIT_TEST_KDF_ENABLED=false
-prevents repeated failures. Replace this runner-local token with one valid
-for p2_17hhlij2ehubf, then set REDDIT_TEST_KDF_ENABLED=true in render.yaml
-and Render. Do not rerun the main-pixel daily slot just to test the KDF token;
-the five AddToWishlist events have already been sent today.
+The KDF pixel initially rejected the old REDDIT_ACCESS_TOKEN with 401. A
+one-event probe using REDDIT_FIRST_PIXEL_TOKEN then returned 200 and
+confirmed processing. An isolated seed using that same working credential
+successfully dispatched 10,001 Search events plus one Lead in twelve
+sequential requests, without sending any main-pixel events.
+
+The runner-local REDDIT_ACCESS_TOKEN now contains the same verified token
+as REDDIT_FIRST_PIXEL_TOKEN, and REDDIT_TEST_KDF_ENABLED=true. The shared
+source environment group was not changed. The five main-pixel
+AddToWishlist events were not resent during KDF seeding.

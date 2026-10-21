@@ -35,7 +35,7 @@ services:
       - key: REDDIT_TEST_MODE
         value: "rapid"
       - key: REDDIT_TEST_KDF_ENABLED
-        value: "false"
+        value: "true"
       - key: REDDIT_TEST_CONTACT_ENABLED
         value: "true"
       - key: REDDIT_TEST_DAILY_UTC
