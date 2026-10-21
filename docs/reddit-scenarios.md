@@ -28,9 +28,11 @@ python3 manage.py run_reddit_scenarios --mode daily
 ```
 
 The execution command is `python manage.py run_reddit_scenarios --execute`.
-Set REDDIT_ACCESS_TOKEN privately, REDDIT_PIXEL_ID=a2_ibjroms8g8bo and
-REDDIT_TEST_KDF_PIXEL_ID=p2_17hhlij2ehubf. The same token must authorize both
-pixels. Optional REDDIT_TEST_EMAIL supplies one SHA-256 email baseline; it
+Set REDDIT_FIRST_PIXEL_TOKEN privately for the main pixel and
+REDDIT_ACCESS_TOKEN for the KDF pixel. Set REDDIT_PIXEL_ID=a2_ibjroms8g8bo
+and REDDIT_TEST_KDF_PIXEL_ID=p2_17hhlij2ehubf. If REDDIT_FIRST_PIXEL_TOKEN is absent,
+the main pixel also uses REDDIT_ACCESS_TOKEN; that requires a token with
+access to both pixels. Optional REDDIT_TEST_EMAIL supplies one SHA-256 email baseline; it
 does not guarantee a positive match score. No random click IDs are generated.
 
 ## Cadence and budgets

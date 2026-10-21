@@ -83,12 +83,15 @@ class RedditScenarioTests(SimpleTestCase):
         page.expect_response.return_value.__enter__.return_value.value.ok = True
         noon = datetime(2026, 10, 21, 12, tzinfo=timezone.utc)
         with patch.dict(sys.modules, {'playwright': ModuleType('playwright'), 'playwright.sync_api': module}), \
-                patch.dict('os.environ', {'REDDIT_TEST_KDF_PIXEL_ID': 'kdf-pixel', 'REDDIT_TEST_DAILY_UTC': '12:00'}), \
+                patch.dict('os.environ', {'REDDIT_TEST_KDF_PIXEL_ID': 'kdf-pixel', 'REDDIT_TEST_DAILY_UTC': '12:00', 'REDDIT_FIRST_PIXEL_TOKEN': 'main-test-token'}), \
                 patch('events.management.commands.run_reddit_scenarios.datetime') as clock, \
                 patch('events.management.commands.run_reddit_scenarios.requests.post') as post:
             clock.now.return_value = noon
             post.return_value.ok = True
             call_command('run_reddit_scenarios', mode='rapid', execute=True, stdout=StringIO())
+        for call in post.call_args_list:
+            expected = 'main-test-token' if '/main-pixel/' in call.args[0] else 'not-a-real-token'
+            self.assertEqual(call.kwargs['headers']['Authorization'], 'Bearer ' + expected)
         main_events = [e for c in post.call_args_list if '/main-pixel/' in c.args[0]
                        for e in c.kwargs['json']['data']['events']]
         kdf_events = [e for c in post.call_args_list if '/kdf-pixel/' in c.args[0]

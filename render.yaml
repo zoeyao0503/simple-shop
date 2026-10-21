@@ -42,6 +42,8 @@ services:
         value: "p2_17hhlij2ehubf"
       - key: REDDIT_ACCESS_TOKEN
         sync: false
+      - key: REDDIT_FIRST_PIXEL_TOKEN
+        sync: false
       - key: REDDIT_TEST_EMAIL
         sync: false
 

@@ -75,7 +75,9 @@ class Command(BaseCommand):
         if not options['execute'] or not plan:
             return
         pixels = {'main': settings.REDDIT_PIXEL_ID, 'kdf': os.getenv('REDDIT_TEST_KDF_PIXEL_ID', '')}
-        if not settings.REDDIT_ACCESS_TOKEN or not pixels['main'] or not pixels['kdf'] or pixels['main'] == pixels['kdf']:
+        tokens = {'main': os.getenv('REDDIT_FIRST_PIXEL_TOKEN') or settings.REDDIT_ACCESS_TOKEN,
+                  'kdf': settings.REDDIT_ACCESS_TOKEN}
+        if not all(tokens.values()) or not pixels['main'] or not pixels['kdf'] or pixels['main'] == pixels['kdf']:
             raise CommandError('Set REDDIT_ACCESS_TOKEN and distinct REDDIT_PIXEL_ID / REDDIT_TEST_KDF_PIXEL_ID')
         site = os.getenv('REDDIT_TEST_SITE_URL', 'https://snoocommerce.onrender.com').rstrip('/')
         if urlsplit(site).scheme != 'https' or urlsplit(site).hostname != 'snoocommerce.onrender.com':
@@ -107,11 +109,11 @@ class Command(BaseCommand):
                             for start in range(0, len(events), 1000):
                                 response = requests.post(
                                     f'https://ads-api.reddit.com/api/v3/pixels/{pixel}/conversion_events',
-                                    headers={'Authorization': f'Bearer {settings.REDDIT_ACCESS_TOKEN}'},
+                                    headers={'Authorization': f"Bearer {tokens[scenario['target']]}"},
                                     json={'data': {'events': events[start:start + 1000]}}, timeout=30,
                                 )
                                 if not response.ok:
-                                    raise CommandError(f'Reddit CAPI HTTP {response.status_code}; stopped without retry')
+                                    raise CommandError(f"Reddit CAPI HTTP {response.status_code} for {scenario['target']}; stopped without retry")
                         self.stdout.write(f"Dispatched {scenario['count']} {scenario['kind']} via {scenario['channel']} to {scenario['target']}")
                 finally:
                     browser.close()
