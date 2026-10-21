@@ -37,7 +37,7 @@ services:
       - key: REDDIT_TEST_KDF_ENABLED
         value: "false"
       - key: REDDIT_TEST_CONTACT_ENABLED
-        value: "false"
+        value: "true"
       - key: REDDIT_TEST_DAILY_UTC
         value: "21:20"
       - key: REDDIT_PIXEL_ID
