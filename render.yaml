@@ -24,16 +24,16 @@ services:
       - key: DEBUG
         value: "false"
 
-  # One Reddit-only runner; five-minute testing cadence; switch this service to daily afterward.
+  # One Reddit-only runner; daily cadence maintains the test scenarios.
   - type: cron
     name: snoocommerce-browser-traffic
     runtime: docker
     rootDir: server
     dockerfilePath: ./Dockerfile.browser
-    schedule: "*/5 * * * *"
+    schedule: "20 21 * * *"
     envVars:
       - key: REDDIT_TEST_MODE
-        value: "rapid"
+        value: "daily"
       - key: REDDIT_TEST_KDF_ENABLED
         value: "true"
       - key: REDDIT_TEST_CONTACT_ENABLED

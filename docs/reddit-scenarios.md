@@ -39,6 +39,10 @@ does not guarantee a positive match score. No random click IDs are generated.
 
 ## Cadence and budgets
 
+The deployed configuration uses daily mode: one run at 21:20 UTC. Each
+regular scenario sends 20 events/day (140 over seven days); AddToWishlist
+stays at five/day and the low-KDF pixel keeps its separate daily budget.
+
 Rapid mode: set REDDIT_TEST_MODE=rapid and cron schedule `*/5 * * * *`.
 Daily mode: set REDDIT_TEST_MODE=daily and cron schedule `20 21 * * *`.
 Update BOTH settings when switching; keeping the five-minute schedule in
@@ -73,7 +77,7 @@ of browser journeys. No automatic retries occur after failures.
    from render.yaml does not establish that the deployed service stopped.
 3. Reuse `snoocommerce-browser-traffic`; set its Docker command to
    `python manage.py run_reddit_scenarios --execute` if an old override exists.
-   Sync its environment and five-minute schedule from render.yaml. Verify
+   Sync its environment and daily schedule from render.yaml. Verify
    the web backend deploy includes the ViewContent CAPI suppression.
 4. Inspect the first successful run, then verify Events Manager/API rollups.
    Disable old browser deployments/manual generators before judging channel
