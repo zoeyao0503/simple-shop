@@ -1,3 +1,5 @@
+import os
+
 from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
 
@@ -38,7 +40,7 @@ class Command(BaseCommand):
             )
             return
 
-        reddit_token = settings.REDDIT_LEAD_CAPI_ACCESS_TOKEN
+        reddit_token = os.getenv('REDDIT_FIRST_PIXEL_TOKEN') or settings.REDDIT_LEAD_CAPI_ACCESS_TOKEN
         if not reddit_token:
             self.stderr.write(self.style.ERROR('REDDIT_LEAD_CAPI_ACCESS_TOKEN is not set'))
             return
@@ -46,7 +48,7 @@ class Command(BaseCommand):
         status_code, result = send_reddit_lead_events(pixel_id, reddit_token, payload)
         if 200 <= status_code < 300:
             self.stdout.write(
-                self.style.SUCCESS(f'Sent {count} Reddit LEAD events to {pixel_id}: {result}')
+                self.style.SUCCESS(f'Sent {count} Reddit LEAD events to {pixel_id}: HTTP {status_code}')
             )
         else:
-            self.stderr.write(self.style.ERROR(f'Reddit LEAD CAPI failed {status_code}: {result}'))
+            raise CommandError(f'Reddit LEAD CAPI failed HTTP {status_code}; stopped without retry')

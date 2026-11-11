@@ -5,6 +5,7 @@ from django.core.management import call_command
 from django.test import SimpleTestCase, override_settings
 
 
+@patch.dict('os.environ', {'REDDIT_FIRST_PIXEL_TOKEN': ''})
 @override_settings(
     REDDIT_LEAD_CAPI_ACCESS_TOKEN='test-token',
     REDDIT_LEAD_CAPI_PIXEL_ID='p2_18kzhk31x1bzs',
@@ -79,3 +80,13 @@ class GenerateRedditLeadsTests(SimpleTestCase):
             'REDDIT_LEAD_CAPI_ACCESS_TOKEN is not set',
             stderr.getvalue(),
         )
+
+    @patch.dict('os.environ', {'REDDIT_FIRST_PIXEL_TOKEN': 'shared-test-token'})
+    @patch('events.reddit_lead_capi.http_requests.post')
+    def test_shared_working_token_takes_precedence_without_logging_response(self, post):
+        post.return_value.status_code = 200
+        post.return_value.json.return_value = {'data': {'message': 'shared-test-token'}}
+        stdout = StringIO()
+        call_command('generate_reddit_leads', count=1, stdout=stdout)
+        self.assertEqual(post.call_args.kwargs['headers']['Authorization'], 'Bearer shared-test-token')
+        self.assertNotIn('shared-test-token', stdout.getvalue())

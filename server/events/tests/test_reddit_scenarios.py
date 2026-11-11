@@ -3,7 +3,7 @@ from unittest.mock import MagicMock, patch
 
 from django.test import SimpleTestCase, override_settings
 
-from events.management.commands.run_reddit_scenarios import build_plan, make_event, failure_message
+from events.management.commands.run_reddit_scenarios import build_plan, make_event, failure_message, match_user, matches_pixel_response
 from events.views import _send_to_reddit
 
 
@@ -110,7 +110,7 @@ class RedditScenarioTests(SimpleTestCase):
             post.return_value.ok = True
             call_command('run_reddit_scenarios', mode='rapid', execute=True, stdout=StringIO())
         for call in post.call_args_list:
-            expected = 'main-test-token' if '/main-pixel/' in call.args[0] else 'not-a-real-token'
+            expected = 'main-test-token'
             self.assertEqual(call.kwargs['headers']['Authorization'], 'Bearer ' + expected)
         main_events = [e for c in post.call_args_list if '/main-pixel/' in c.args[0]
                        for e in c.kwargs['json']['data']['events']]
@@ -120,8 +120,46 @@ class RedditScenarioTests(SimpleTestCase):
         self.assertEqual(sum(e['type']['tracking_type'] == 'ADD_TO_WISHLIST' for e in main_events), 5)
         self.assertEqual(len(kdf_events), 10002)
         self.assertTrue(all(len(c.kwargs['json']['data']['events']) <= 1000 for c in post.call_args_list))
-        browser_events = [c.args[1] for c in page.evaluate.call_args_list if len(c.args) == 2 and isinstance(c.args[1], list)]
+        browser_events = [c.args[1] for c in page.evaluate.call_args_list if len(c.args) == 2 and isinstance(c.args[1], list)
+                          and c.args[1][0] in ('ViewContent', 'AddToCart')]
         self.assertEqual(len(browser_events), 40)
         self.assertEqual({name for name, _ in browser_events}, {'ViewContent', 'AddToCart'})
         dual_ids = {e['metadata']['conversion_id'] for e in main_events if e['type']['tracking_type'] == 'ADD_TO_CART'}
         self.assertEqual(dual_ids, {identifier for name, identifier in browser_events if name == 'AddToCart'})
+
+    def test_response_requires_exact_pixel_event_and_hashed_id(self):
+        import hashlib
+        from urllib.parse import urlencode
+        identifier = 'fixture-conversion-1'
+        expected = {'id': 'main-pixel', 'event': 'AddToCart',
+                    'm.conversionId': hashlib.sha256(identifier.encode()).hexdigest()}
+        response = MagicMock()
+        response.url = 'https://alb.reddit.com/rp?id=main-pixel&event=AddToCart'
+        response.request.post_data = urlencode(expected)
+        self.assertTrue(matches_pixel_response(response, 'main-pixel', 'AddToCart', identifier))
+        for field in expected:
+            response.request.post_data = urlencode({**expected, field: 'unrelated'})
+            self.assertFalse(matches_pixel_response(response, 'main-pixel', 'AddToCart', identifier))
+        response.url = 'https://alb.reddit.com/rp.gif?' + urlencode(expected)
+        response.request.post_data = None
+        self.assertTrue(matches_pixel_response(response, 'main-pixel', 'AddToCart', identifier))
+        response.url = 'https://alb.reddit.com/unrelated?' + urlencode(expected)
+        self.assertFalse(matches_pixel_response(response, 'main-pixel', 'AddToCart', identifier))
+        response.url = 'https://other.example/rp.gif?' + urlencode(expected)
+        self.assertFalse(matches_pixel_response(response, 'main-pixel', 'AddToCart', identifier))
+
+    @patch.dict('os.environ', {'REDDIT_TEST_EMAIL': ''})
+    def test_profiles_are_stable_and_keep_sparse_cases_isolated(self):
+        now = datetime(2026, 11, 11, 21, 20, tzinfo=timezone.utc)
+        plan = build_plan(now, 'daily', 1280)
+        users = [match_user(s, 'fixture-agent') for s in plan]
+        self.assertEqual(users[0], users[1])
+        self.assertEqual(users[1], users[2])
+        self.assertEqual(set(users[1]), {'email', 'external_id', 'user_agent'})
+        self.assertEqual(users[3], {'user_agent': 'fixture-agent'})
+        self.assertEqual(set(users[4]), {'email'})
+        self.assertEqual(set(users[5]), {'external_id'})
+        self.assertEqual(users[-1], {'user_agent': 'fixture-agent'})
+        self.assertEqual(users[-2], users[-1])
+        self.assertEqual(users, [match_user(s, 'fixture-agent') for s in plan])
+        self.assertEqual(len(users[1]['email']), 64)

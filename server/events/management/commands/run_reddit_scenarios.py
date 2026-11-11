@@ -2,7 +2,7 @@ import hashlib
 import json
 import os
 from datetime import datetime, timezone
-from urllib.parse import urlsplit
+from urllib.parse import parse_qs, urlsplit
 from uuid import NAMESPACE_URL, uuid5
 
 import requests
@@ -53,6 +53,30 @@ def make_event(scenario, index, pixel, now, site, user):
     }
 
 
+def match_user(scenario, user_agent):
+    email = os.getenv('REDDIT_TEST_EMAIL', '').strip().lower() or 'snootest@example.invalid'
+    email_hash = hashlib.sha256(email.encode()).hexdigest()
+    external_hash = hashlib.sha256(b'snoocommerce:synthetic-profile:1').hexdigest()
+    if scenario['target'] == 'kdf' or scenario['kind'] == 'CONTACT':
+        return {'user_agent': user_agent}
+    if scenario['custom'] == 'SnooTestAlpha':
+        return {'email': email_hash}
+    if scenario['custom'] == 'Snoo Test Beta':
+        return {'external_id': external_hash}
+    return {'email': email_hash, 'external_id': external_hash, 'user_agent': user_agent}
+
+
+def matches_pixel_response(response, pixel, name, conversion_id):
+    parts = urlsplit(response.url)
+    if parts.hostname != 'alb.reddit.com' or parts.path not in ('/rp', '/rp.gif'):
+        return False
+    request = response.request
+    fields = parse_qs(request.post_data or parts.query)
+    expected_id = hashlib.sha256(conversion_id.encode()).hexdigest()
+    return (fields.get('id') == [pixel] and fields.get('event') == [name]
+            and fields.get('m.conversionId') == [expected_id])
+
+
 def failure_message(response, tokens):
     try:
         body = response.json()
@@ -93,7 +117,7 @@ class Command(BaseCommand):
             return
         pixels = {'main': settings.REDDIT_PIXEL_ID, 'kdf': os.getenv('REDDIT_TEST_KDF_PIXEL_ID', '')}
         tokens = {'main': os.getenv('REDDIT_FIRST_PIXEL_TOKEN') or settings.REDDIT_ACCESS_TOKEN,
-                  'kdf': settings.REDDIT_ACCESS_TOKEN}
+                  'kdf': os.getenv('REDDIT_FIRST_PIXEL_TOKEN') or settings.REDDIT_ACCESS_TOKEN}
         targets = {scenario['target'] for scenario in plan}
         if any(not tokens[target] or not pixels[target] for target in targets) or ('kdf' in targets and pixels['main'] == pixels['kdf']):
             raise CommandError('Set valid credentials and distinct pixel IDs for the active scenarios')
@@ -109,17 +133,18 @@ class Command(BaseCommand):
                     page.goto(site + '/reddit-test.html', wait_until='load', timeout=120000)
                     page.wait_for_function('window.redditTestReady === true', timeout=30000)
                     page.evaluate('(id) => window.rdt("init", id)', pixels['main'])
-                    user = {'user_agent': page.evaluate('navigator.userAgent')}
-                    email = os.getenv('REDDIT_TEST_EMAIL', '').strip().lower()
-                    if email:
-                        user['email'] = hashlib.sha256(email.encode()).hexdigest()
+                    user_agent = page.evaluate('navigator.userAgent')
                     for scenario in plan:
                         pixel = pixels[scenario['target']]
+                        user = match_user(scenario, user_agent)
                         events = [make_event(scenario, i, pixel, now, site, user) for i in range(scenario['count'])]
                         if scenario['channel'] in ('pixel', 'dual'):
+                            page.evaluate('([id, user]) => window.rdt("init", id, {email: user.email, externalId: user.external_id})',
+                                          [pixel, user])
                             for event in events:
-                                with page.expect_response(lambda r: urlsplit(r.url).hostname == 'alb.reddit.com', timeout=30000) as response:
-                                    page.evaluate('([name, id]) => window.rdt("track", name, {conversion_id: id})',
+                                with page.expect_response(lambda r: matches_pixel_response(
+                                        r, pixel, BROWSER_NAMES[scenario['kind']], event['metadata']['conversion_id']), timeout=30000) as response:
+                                    page.evaluate('([name, id]) => window.rdt("track", name, {conversionId: id})',
                                                   [BROWSER_NAMES[scenario['kind']], event['metadata']['conversion_id']])
                                 if not response.value.ok:
                                     raise CommandError('Reddit Pixel transport failed; stopped without retry')
@@ -132,6 +157,7 @@ class Command(BaseCommand):
                                 )
                                 if not response.ok:
                                     raise CommandError(f"Reddit CAPI HTTP {response.status_code} for {scenario['target']} {scenario['kind']}: {failure_message(response, tokens)}; stopped without retry")
+                                self.stdout.write(f"CAPI HTTP {response.status_code} {scenario['target']} {scenario['kind']} chunk {start // 1000 + 1}: {len(events[start:start + 1000])} submitted")
                         self.stdout.write(f"Dispatched {scenario['count']} {scenario['kind']} via {scenario['channel']} to {scenario['target']}")
                 finally:
                     browser.close()
