@@ -64,6 +64,16 @@ hide earlier submitted chunks. Never replay a full batch to recover one target.
 
 ## Cadence and budgets
 
+The isolated NO-KDF candidate has an explicit manual command:
+`python manage.py run_reddit_scenarios --no-kdf-fixture` previews exactly
+20 SDK Search events for `p2_18kzhk31x1bzs`; add `--execute` only for an
+authorized send. This replaces the plan for that invocation, requires no CAPI
+token, and does not run main/KDF scenarios or change the cron schedule.
+It uses actual send time and stable per-date IDs. Run it once after inspecting
+the current cohort; there is no persistent quota ledger. Do not run the old
+Lead generator on this candidate while validating NO-KDF. The daily LOW
+candidate remains `p2_17hhlij2ehubf`; do not add another Lead or replay its batch.
+
 The deployed configuration uses daily mode: one run at 21:20 UTC. Each
 regular scenario sends 20 events/day (140 over seven days); AddToWishlist
 stays at five/day and the low-KDF pixel keeps its separate daily budget.
@@ -119,7 +129,30 @@ Repeat final acceptance against deployed native V4/nested API. Existing
 V3 flat results do not establish V4 acceptance. Nonzero scoring still needs
 realistic, accepted test identities; this runner does not promise it.
 
-## Live dispatch checkpoint — October 21, 2026
+## Fixture readiness — November 11, 2026
+
+Runner `0561c01`, Render `dep-dbqc9n0ae00c7385brsg`, completed the scheduled
+21:20 UTC batch at 21:21:19 UTC. [Run logs](https://dashboard.render.com/cron/crn-d6kaqongi27c73a97020/logs?r=2026-11-11%4021%3A19%3A14%7E2026-11-11%4021%3A22%3A19).
+Production UI observations below use November 4–11; they do not establish the
+public API's effective dates/timezone or whole-pixel eligible denominator.
+
+| Case | Status | Result / evidence | Next action |
+| --- | --- | --- | --- |
+| Main `a2_ibjroms8g8bo` | Partial | Scheduled SDK responses correlated; CAPI HTTP 200. UI has CAPI Cart/Search/Contact/customs 160 each, Wishlist 40; zero Pixel Cart and no ViewContent row. | Verify downstream browser IDs/source; preserve ordinary recommendation and match-key cases. |
+| LOW candidate `p2_17hhlij2ehubf` | Partial | Search 10,001 + Lead 1 submitted with HTTP 200 at 21:21:15 UTC; UI raw/unique counts agree, but Lead Match Keys has no website data. | PiCS/PES owner verifies non-duplicate WEBSITE counts, no event filter, effective current window: KDF 1–9 and total >10,000. |
+| NO candidate `p2_18kzhk31x1bzs` | Untested | UI has no raw events in the inspected window. Manual 20 SDK Search command prepared; automatic approval review blocked execution, so zero events sent. | Authorize the single send, then verify eligible total >0 and KDF=0. |
+
+The LOW batch's final Search ID is `76b86797-21b5-5e3c-8444-aaaa13d3d157`;
+its Lead ID is `3874eaeb-6621-5dda-8a88-4336e1c0cab9`. These are reconstructed
+from the deployed deterministic planner, not observed downstream IDs.
+Druid authorization timed out; BigQuery CLI requires reauthentication.
+D082 storage/producer drafts [#866](https://github.snooguts.net/reddit/reddit-service-pixel-config/pull/866)
+and [#867](https://github.snooguts.net/reddit/reddit-service-pixel-config/pull/867)
+are published; deployment and live acceptance remain pending. No serving revision
+or live OFF/ON dynamic-name acceptance is established. No service deployment, shared
+flag allocation, notification, timestamp override, or history reset occurred.
+
+## Historical dispatch checkpoint — October 21, 2026
 
 The deployed runner completed the five main-pixel scenarios at 14:15 PDT:
 Pixel ViewContent, CAPI Search, dual AddToCart and both custom names. At

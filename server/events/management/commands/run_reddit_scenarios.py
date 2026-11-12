@@ -18,7 +18,13 @@ SCENARIOS = (
     ('CUSTOM', 'capi', 'SnooTestAlpha'),
     ('CUSTOM', 'capi', 'Snoo Test Beta'),
 )
-BROWSER_NAMES = {'VIEW_CONTENT': 'ViewContent', 'ADD_TO_CART': 'AddToCart'}
+BROWSER_NAMES = {'VIEW_CONTENT': 'ViewContent', 'ADD_TO_CART': 'AddToCart', 'SEARCH': 'Search'}
+NO_KDF_PIXEL_ID = 'p2_18kzhk31x1bzs'
+
+
+def build_no_kdf_plan(now):
+    return [dict(kind='SEARCH', channel='pixel', custom=None, count=20,
+                 target='no_kdf', slot=now.strftime('%Y-%m-%d'))]
 
 
 def build_plan(now, mode, daily_slot, include_contact=True, include_kdf=True):
@@ -96,6 +102,8 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser):
         parser.add_argument('--execute', action='store_true')
+        parser.add_argument('--no-kdf-fixture', action='store_true',
+                            help='Manual-only: 20 SDK Search events to the isolated NO-KDF candidate')
         parser.add_argument('--mode', choices=('rapid', 'daily'), default=os.getenv('REDDIT_TEST_MODE', 'daily'))
 
     def handle(self, *args, **options):
@@ -112,14 +120,21 @@ class Command(BaseCommand):
         plan = build_plan(now, mode, hour * 60 + minute,
                           include_contact=os.getenv('REDDIT_TEST_CONTACT_ENABLED', 'false').lower() == 'true',
                           include_kdf=os.getenv('REDDIT_TEST_KDF_ENABLED', 'false').lower() == 'true')
+        if options['no_kdf_fixture']:
+            plan = build_no_kdf_plan(now)
         self.stdout.write(json.dumps({'mode': mode, 'execute': options['execute'], 'scenarios': plan}))
         if not options['execute'] or not plan:
             return
-        pixels = {'main': settings.REDDIT_PIXEL_ID, 'kdf': os.getenv('REDDIT_TEST_KDF_PIXEL_ID', '')}
+        pixels = {'main': settings.REDDIT_PIXEL_ID, 'kdf': os.getenv('REDDIT_TEST_KDF_PIXEL_ID', ''),
+                  'no_kdf': NO_KDF_PIXEL_ID}
         tokens = {'main': os.getenv('REDDIT_FIRST_PIXEL_TOKEN') or settings.REDDIT_ACCESS_TOKEN,
                   'kdf': os.getenv('REDDIT_FIRST_PIXEL_TOKEN') or settings.REDDIT_ACCESS_TOKEN}
         targets = {scenario['target'] for scenario in plan}
-        if any(not tokens[target] or not pixels[target] for target in targets) or ('kdf' in targets and pixels['main'] == pixels['kdf']):
+        capi_targets = {s['target'] for s in plan if s['channel'] in ('capi', 'dual')}
+        if (any(not pixels[target] for target in targets)
+                or any(not tokens[target] for target in capi_targets)
+                or ('kdf' in targets and pixels['main'] == pixels['kdf'])
+                or ('no_kdf' in targets and NO_KDF_PIXEL_ID in (pixels['main'], pixels['kdf']))):
             raise CommandError('Set valid credentials and distinct pixel IDs for the active scenarios')
         site = os.getenv('REDDIT_TEST_SITE_URL', 'https://snoocommerce.onrender.com').rstrip('/')
         if urlsplit(site).scheme != 'https' or urlsplit(site).hostname != 'snoocommerce.onrender.com':
@@ -132,7 +147,6 @@ class Command(BaseCommand):
                     page = browser.new_page()
                     page.goto(site + '/reddit-test.html', wait_until='load', timeout=120000)
                     page.wait_for_function('window.redditTestReady === true', timeout=30000)
-                    page.evaluate('(id) => window.rdt("init", id)', pixels['main'])
                     user_agent = page.evaluate('navigator.userAgent')
                     for scenario in plan:
                         pixel = pixels[scenario['target']]
@@ -148,6 +162,7 @@ class Command(BaseCommand):
                                                   [BROWSER_NAMES[scenario['kind']], event['metadata']['conversion_id']])
                                 if not response.value.ok:
                                     raise CommandError('Reddit Pixel transport failed; stopped without retry')
+                                self.stdout.write(f"Pixel HTTP {response.value.status} pixel={pixel} event={scenario['kind']} conversion_id={event['metadata']['conversion_id']}")
                         if scenario['channel'] in ('capi', 'dual'):
                             for start in range(0, len(events), 1000):
                                 response = requests.post(

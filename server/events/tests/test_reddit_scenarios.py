@@ -3,11 +3,41 @@ from unittest.mock import MagicMock, patch
 
 from django.test import SimpleTestCase, override_settings
 
-from events.management.commands.run_reddit_scenarios import build_plan, make_event, failure_message, match_user, matches_pixel_response
+from events.management.commands.run_reddit_scenarios import build_plan, build_no_kdf_plan, make_event, failure_message, match_user, matches_pixel_response
 from events.views import _send_to_reddit
 
 
 class RedditScenarioTests(SimpleTestCase):
+    @override_settings(REDDIT_ACCESS_TOKEN='', REDDIT_PIXEL_ID='main-pixel')
+    def test_manual_no_kdf_runs_only_sdk_search_outside_slot_without_capi_credentials(self):
+        import sys
+        from io import StringIO
+        from types import ModuleType
+        from django.core.management import call_command
+
+        module = ModuleType('playwright.sync_api')
+        module.sync_playwright = MagicMock()
+        page = module.sync_playwright.return_value.__enter__.return_value.chromium.launch.return_value.new_page.return_value
+        page.evaluate.return_value = 'fixture-agent'
+        page.expect_response.return_value.__enter__.return_value.value.ok = True
+        now = datetime(2026, 11, 11, 23, tzinfo=timezone.utc)
+        output = StringIO()
+        with patch.dict(sys.modules, {'playwright': ModuleType('playwright'), 'playwright.sync_api': module}), \
+                patch('events.management.commands.run_reddit_scenarios.datetime') as clock, \
+                patch('events.management.commands.run_reddit_scenarios.requests.post') as post:
+            clock.now.return_value = now
+            call_command('run_reddit_scenarios', no_kdf_fixture=True, execute=True, stdout=output)
+        post.assert_not_called()
+        calls = [c.args[1] for c in page.evaluate.call_args_list if len(c.args) == 2]
+        self.assertEqual(calls[0][0], 'p2_18kzhk31x1bzs')
+        self.assertEqual([c[0] for c in calls[1:]], ['Search'] * 20)
+        self.assertEqual(len({c[1] for c in calls[1:]}), 20)
+        self.assertIn('20 SEARCH via pixel to no_kdf', output.getvalue())
+        self.assertEqual(build_plan(now, 'daily', 1280), [])
+        plan = build_no_kdf_plan(now)
+        self.assertEqual(plan, build_no_kdf_plan(now + timedelta(minutes=10)))
+        self.assertNotEqual(plan, build_no_kdf_plan(now + timedelta(days=1)))
+
     def test_api_error_redacts_both_tokens_before_truncating(self):
         response = MagicMock()
         response.json.return_value = {'error': {'message': 'Invalid first-private / second-private'}}
