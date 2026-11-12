@@ -8,8 +8,46 @@ from events.views import _send_to_reddit
 
 
 class RedditScenarioTests(SimpleTestCase):
-    @override_settings(REDDIT_ACCESS_TOKEN='', REDDIT_PIXEL_ID='main-pixel')
-    def test_manual_no_kdf_runs_only_sdk_search_outside_slot_without_capi_credentials(self):
+    def test_no_kdf_daily_budget_does_not_repeat_on_rapid_iterations(self):
+        start = datetime(2026, 11, 11, tzinfo=timezone.utc)
+        no_kdf = []
+        for offset in range(8 * 24 * 12):
+            plan = build_plan(start + timedelta(minutes=5 * offset), 'rapid', 1280, include_no_kdf=True)
+            no_kdf.extend(s for s in plan if s['target'] == 'no_kdf')
+        self.assertEqual(sum(s['count'] for s in no_kdf), 8 * 20)
+        self.assertEqual({s['kind'] for s in no_kdf}, {'SEARCH'})
+        self.assertEqual(len({s['slot'] for s in no_kdf}), 8)
+
+    @patch.dict('os.environ', {'REDDIT_TEST_NO_KDF_LAST_SENT_UTC_DATE': '2026-11-11'})
+    @patch('events.management.commands.run_reddit_scenarios.requests.post')
+    def test_persisted_manual_send_marker_blocks_replaying_no_kdf(self, post):
+        from io import StringIO
+        from django.core.management import call_command
+        with patch('events.management.commands.run_reddit_scenarios.datetime') as clock:
+            clock.now.return_value = datetime(2026, 11, 11, 23, tzinfo=timezone.utc)
+            output = StringIO()
+            call_command('run_reddit_scenarios', no_kdf_fixture=True, execute=True, stdout=output)
+        post.assert_not_called()
+        self.assertIn('"scenarios": []', output.getvalue())
+
+    @patch.dict('os.environ', {'REDDIT_TEST_NO_KDF_ENABLED': 'true', 'REDDIT_TEST_KDF_ENABLED': 'true',
+                              'REDDIT_TEST_NO_KDF_LAST_SENT_UTC_DATE': '2026-11-11'})
+    def test_manual_send_marker_preserves_low_and_expires_next_date(self):
+        import json
+        from io import StringIO
+        from django.core.management import call_command
+        for day, expected_no_count in ((11, 0), (12, 20)):
+            with patch('events.management.commands.run_reddit_scenarios.datetime') as clock:
+                clock.now.return_value = datetime(2026, 11, day, 21, 20, tzinfo=timezone.utc)
+                output = StringIO()
+                call_command('run_reddit_scenarios', stdout=output)
+            plan = json.loads(output.getvalue())['scenarios']
+            self.assertEqual(sum(s['count'] for s in plan if s['target'] == 'no_kdf'), expected_no_count)
+            self.assertEqual(sum(s['count'] for s in plan if s['target'] == 'kdf'), 10002)
+            self.assertEqual([s['count'] for s in plan if s['target'] == 'kdf' and s['kind'] == 'LEAD'], [1])
+
+    @override_settings(REDDIT_ACCESS_TOKEN='fixture-token', REDDIT_PIXEL_ID='main-pixel')
+    def test_manual_no_kdf_routes_only_twenty_website_search_events_outside_slot(self):
         import sys
         from io import StringIO
         from types import ModuleType
@@ -26,13 +64,18 @@ class RedditScenarioTests(SimpleTestCase):
                 patch('events.management.commands.run_reddit_scenarios.datetime') as clock, \
                 patch('events.management.commands.run_reddit_scenarios.requests.post') as post:
             clock.now.return_value = now
+            post.return_value.ok = True
             call_command('run_reddit_scenarios', no_kdf_fixture=True, execute=True, stdout=output)
-        post.assert_not_called()
-        calls = [c.args[1] for c in page.evaluate.call_args_list if len(c.args) == 2]
-        self.assertEqual(calls[0][0], 'p2_18kzhk31x1bzs')
-        self.assertEqual([c[0] for c in calls[1:]], ['Search'] * 20)
-        self.assertEqual(len({c[1] for c in calls[1:]}), 20)
-        self.assertIn('20 SEARCH via pixel to no_kdf', output.getvalue())
+        post.assert_called_once()
+        self.assertIn('/pixels/p2_18kzhk31x1bzs/conversion_events', post.call_args.args[0])
+        events = post.call_args.kwargs['json']['data']['events']
+        self.assertEqual(len(events), 20)
+        self.assertTrue(all(e['type'] == {'tracking_type': 'SEARCH'} for e in events))
+        self.assertTrue(all(e['action_source'] == 'WEBSITE' for e in events))
+        self.assertTrue(all(set(e['user']) == {'email', 'external_id', 'user_agent'} for e in events))
+        self.assertEqual(len({e['metadata']['conversion_id'] for e in events}), 20)
+        self.assertFalse(any(len(c.args) == 2 for c in page.evaluate.call_args_list))
+        self.assertIn('20 SEARCH via capi to no_kdf', output.getvalue())
         self.assertEqual(build_plan(now, 'daily', 1280), [])
         plan = build_no_kdf_plan(now)
         self.assertEqual(plan, build_no_kdf_plan(now + timedelta(minutes=10)))

@@ -23,11 +23,11 @@ NO_KDF_PIXEL_ID = 'p2_18kzhk31x1bzs'
 
 
 def build_no_kdf_plan(now):
-    return [dict(kind='SEARCH', channel='pixel', custom=None, count=20,
+    return [dict(kind='SEARCH', channel='capi', custom=None, count=20,
                  target='no_kdf', slot=now.strftime('%Y-%m-%d'))]
 
 
-def build_plan(now, mode, daily_slot, include_contact=True, include_kdf=True):
+def build_plan(now, mode, daily_slot, include_contact=True, include_kdf=True, include_no_kdf=False):
     minute = now.hour * 60 + now.minute
     daily = minute // 5 == daily_slot // 5
     if mode == 'daily' and not daily:
@@ -43,6 +43,8 @@ def build_plan(now, mode, daily_slot, include_contact=True, include_kdf=True):
                 dict(kind='SEARCH', channel='capi', custom=None, count=10001, target='kdf', slot=date),
                 dict(kind='LEAD', channel='capi', custom=None, count=1, target='kdf', slot=date),
             ])
+        if include_no_kdf:
+            plan.extend(build_no_kdf_plan(now))
     return plan
 
 
@@ -103,7 +105,7 @@ class Command(BaseCommand):
     def add_arguments(self, parser):
         parser.add_argument('--execute', action='store_true')
         parser.add_argument('--no-kdf-fixture', action='store_true',
-                            help='Manual-only: 20 SDK Search events to the isolated NO-KDF candidate')
+                            help='Manual-only: 20 CAPI Search events to the isolated NO-KDF candidate')
         parser.add_argument('--mode', choices=('rapid', 'daily'), default=os.getenv('REDDIT_TEST_MODE', 'daily'))
 
     def handle(self, *args, **options):
@@ -119,16 +121,20 @@ class Command(BaseCommand):
         now = datetime.now(timezone.utc)
         plan = build_plan(now, mode, hour * 60 + minute,
                           include_contact=os.getenv('REDDIT_TEST_CONTACT_ENABLED', 'false').lower() == 'true',
-                          include_kdf=os.getenv('REDDIT_TEST_KDF_ENABLED', 'false').lower() == 'true')
+                          include_kdf=os.getenv('REDDIT_TEST_KDF_ENABLED', 'false').lower() == 'true',
+                          include_no_kdf=os.getenv('REDDIT_TEST_NO_KDF_ENABLED', 'false').lower() == 'true')
         if options['no_kdf_fixture']:
             plan = build_no_kdf_plan(now)
+        if os.getenv('REDDIT_TEST_NO_KDF_LAST_SENT_UTC_DATE') == now.strftime('%Y-%m-%d'):
+            plan = [s for s in plan if s['target'] != 'no_kdf']
         self.stdout.write(json.dumps({'mode': mode, 'execute': options['execute'], 'scenarios': plan}))
         if not options['execute'] or not plan:
             return
         pixels = {'main': settings.REDDIT_PIXEL_ID, 'kdf': os.getenv('REDDIT_TEST_KDF_PIXEL_ID', ''),
                   'no_kdf': NO_KDF_PIXEL_ID}
         tokens = {'main': os.getenv('REDDIT_FIRST_PIXEL_TOKEN') or settings.REDDIT_ACCESS_TOKEN,
-                  'kdf': os.getenv('REDDIT_FIRST_PIXEL_TOKEN') or settings.REDDIT_ACCESS_TOKEN}
+                  'kdf': os.getenv('REDDIT_FIRST_PIXEL_TOKEN') or settings.REDDIT_ACCESS_TOKEN,
+                  'no_kdf': os.getenv('REDDIT_FIRST_PIXEL_TOKEN') or settings.REDDIT_ACCESS_TOKEN}
         targets = {scenario['target'] for scenario in plan}
         capi_targets = {s['target'] for s in plan if s['channel'] in ('capi', 'dual')}
         if (any(not pixels[target] for target in targets)

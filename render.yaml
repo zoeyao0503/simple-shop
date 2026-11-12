@@ -36,6 +36,8 @@ services:
         value: "daily"
       - key: REDDIT_TEST_KDF_ENABLED
         value: "true"
+      - key: REDDIT_TEST_NO_KDF_ENABLED
+        value: "true"
       - key: REDDIT_TEST_CONTACT_ENABLED
         value: "true"
       - key: REDDIT_TEST_DAILY_UTC

@@ -13,6 +13,7 @@ integrations remain available; this runner does not invoke them.
 | a2_ibjroms8g8bo | SnooTestAlpha / Snoo Test Beta | Custom, CAPI | 20 each/run |
 | a2_ibjroms8g8bo | AddToWishlist | CAPI, null score | 5/day |
 | p2_17hhlij2ehubf | Search + Lead | CAPI, low KDF | 10,001 Search + 1 Lead/day |
+| p2_18kzhk31x1bzs | Search | CAPI, NO-KDF candidate | 20/day |
 
 Contact is enabled with REDDIT_TEST_CONTACT_ENABLED=true. After the owner
 updated DDG eligibility, a live run on October 21 at 14:28 PDT dispatched
@@ -64,13 +65,21 @@ hide earlier submitted chunks. Never replay a full batch to recover one target.
 
 ## Cadence and budgets
 
-The isolated NO-KDF candidate has an explicit manual command:
+Set REDDIT_TEST_NO_KDF_ENABLED=true for the isolated NO-KDF candidate. It
+sends 20 CAPI Search events in the same daily slot, with zero KDF events.
+An explicit manual command is available for a separately authorized send:
 `python manage.py run_reddit_scenarios --no-kdf-fixture` previews exactly
-20 SDK Search events for `p2_18kzhk31x1bzs`; add `--execute` only for an
-authorized send. This replaces the plan for that invocation, requires no CAPI
-token, and does not run main/KDF scenarios or change the cron schedule.
-It uses actual send time and stable per-date IDs. Run it once after inspecting
-the current cohort; there is no persistent quota ledger. Do not run the old
+20 CAPI Search events for `p2_18kzhk31x1bzs`; add `--execute` only for an
+authorized send. This replaces the plan for that invocation, uses the existing shared
+REDDIT_FIRST_PIXEL_TOKEN preference, and does not run main/KDF scenarios.
+It uses actual send time and stable per-date IDs. After a successful manual
+send, persist REDDIT_TEST_NO_KDF_LAST_SENT_UTC_DATE=YYYY-MM-DD in the existing
+Render cron environment, using the UTC date printed in the plan. Verify its
+preview omits NO before restoring the normal scheduled command. That marker
+suppresses NO alone for the already accepted date; the following date resumes
+20/day. This operational marker is not an automatic or atomic quota ledger.
+Run once after inspecting the effective current cohort; never replay a bulk
+batch to compensate for unavailable quality data. Do not run the old
 Lead generator on this candidate while validating NO-KDF. The daily LOW
 candidate remains `p2_17hhlij2ehubf`; do not add another Lead or replay its batch.
 
@@ -140,7 +149,7 @@ public API's effective dates/timezone or whole-pixel eligible denominator.
 | --- | --- | --- | --- |
 | Main `a2_ibjroms8g8bo` | Partial | Scheduled SDK responses correlated; CAPI HTTP 200. UI has CAPI Cart/Search/Contact/customs 160 each, Wishlist 40; zero Pixel Cart and no ViewContent row. | Verify downstream browser IDs/source; preserve ordinary recommendation and match-key cases. |
 | LOW candidate `p2_17hhlij2ehubf` | Partial | Search 10,001 + Lead 1 submitted with HTTP 200 at 21:21:15 UTC; UI raw/unique counts agree, but Lead Match Keys has no website data. | PiCS/PES owner verifies non-duplicate WEBSITE counts, no event filter, effective current window: KDF 1–9 and total >10,000. |
-| NO candidate `p2_18kzhk31x1bzs` | Untested | UI has no raw events in the inspected window. Manual 20 SDK Search command prepared; automatic approval review blocked execution, so zero events sent. | Authorize the single send, then verify eligible total >0 and KDF=0. |
+| NO candidate `p2_18kzhk31x1bzs` | Untested | UI has no raw events in the inspected window. CAPI Search 20/day and manual-only invocation prepared; automatic approval review blocked execution, so zero events sent. | Authorize the single send or await one deployed daily slot, then verify eligible total >0 and KDF=0. |
 
 The LOW batch's final Search ID is `76b86797-21b5-5e3c-8444-aaaa13d3d157`;
 its Lead ID is `3874eaeb-6621-5dda-8a88-4336e1c0cab9`. These are reconstructed
